@@ -31,6 +31,7 @@ import com.example.library.viewmodel.ProfileViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    paddingValues: PaddingValues = PaddingValues(0.dp),
     viewModel: ProfileViewModel = viewModel()
 ) {
     val user by viewModel.user.collectAsState()
@@ -54,8 +55,10 @@ fun ProfileScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(bottom = 32.dp),
+                    .padding(top = padding.calculateTopPadding()),
+                contentPadding = PaddingValues(
+                    bottom = paddingValues.calculateBottomPadding() + 32.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // 1. Header

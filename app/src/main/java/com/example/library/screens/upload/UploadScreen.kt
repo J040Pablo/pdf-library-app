@@ -26,6 +26,7 @@ import com.example.library.viewmodel.UploadViewModel
 
 @Composable
 fun UploadScreen(
+    paddingValues: PaddingValues = PaddingValues(0.dp),
     viewModel: UploadViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()

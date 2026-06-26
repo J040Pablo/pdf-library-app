@@ -2,7 +2,6 @@ package com.example.library.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -14,11 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -27,74 +25,79 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.combinedClickable
 import com.example.library.model.Book
-import com.example.library.ui.theme.LibraryTheme
+import com.example.library.ui.theme.*
 import kotlin.math.sin
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecentBookCard(
     book: Book,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier
-            .width(160.dp)
-            .padding(8.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(24.dp),
+            .width(160.dp),
+        shape = RoundedCornerShape(28.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = CardBackground
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black.copy(alpha = 0.03f))
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
+        Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .height(180.dp)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(CoverBackground),
                 contentAlignment = Alignment.Center
             ) {
                 // Placeholder for Book Cover
                 Icon(
-                    imageVector = Icons.Default.Bookmark, // Using Bookmark as placeholder icon
+                    imageVector = Icons.Default.AutoStories,
                     contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(72.dp),
+                    tint = WavyActive.copy(alpha = 0.4f)
                 )
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
             
             WavyProgressBar(
                 progress = book.progress,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
+                    .padding(horizontal = 14.dp)
+                    .padding(top = 2.dp)
+                    .height(12.dp)
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = book.author,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = book.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = TextTitle
+                )
+                Text(
+                    text = book.author,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextAuthor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopRatedBookCard(
     book: Book,
@@ -103,26 +106,39 @@ fun TopRatedBookCard(
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(24.dp),
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = CardBackground
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black.copy(alpha = 0.03f))
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
+        Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .height(210.dp)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(CoverBackground)
             ) {
-                // Bookmark Icon
+                // Placeholder Content
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoStories,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = WavyActive.copy(alpha = 0.4f)
+                    )
+                }
+
+                // Bookmark Icon (Figma Style: top right, thin, no bg)
                 IconButton(
                     onClick = onBookmarkClick,
                     modifier = Modifier.align(Alignment.TopEnd)
@@ -130,27 +146,40 @@ fun TopRatedBookCard(
                     Icon(
                         imageVector = if (book.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
                         contentDescription = "Bookmark",
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = WavyActive.copy(alpha = 0.8f),
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
+            WavyProgressBar(
+                progress = book.progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp)
+                    .padding(top = 2.dp)
+                    .height(12.dp)
+            )
             
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = book.author,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = book.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = TextTitle
+                )
+                Text(
+                    text = book.author,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextAuthor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -160,15 +189,15 @@ fun WavyProgressBar(
     progress: Float,
     modifier: Modifier = Modifier
 ) {
-    val activeColor = MaterialTheme.colorScheme.primary
-    val inactiveColor = MaterialTheme.colorScheme.primaryContainer
+    val activeColor = WavyActive
+    val inactiveColor = WavyInactive
     
     Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
         val centerY = height / 2
-        val waveAmplitude = 4f
-        val waveFrequency = 0.1f
+        val waveAmplitude = 5f
+        val waveFrequency = 0.12f
         
         val activePath = Path()
         val inactivePath = Path()
@@ -177,7 +206,7 @@ fun WavyProgressBar(
         inactivePath.moveTo(0f, centerY)
         
         for (x in 0..width.toInt()) {
-            val y = centerY + waveAmplitude * sin(x * waveFrequency)
+            val y = centerY + (waveAmplitude * sin(x.toFloat() * waveFrequency))
             if (x <= width * progress) {
                 activePath.lineTo(x.toFloat(), y)
             } else {
@@ -191,34 +220,34 @@ fun WavyProgressBar(
         drawPath(
             path = activePath,
             color = activeColor,
-            style = Stroke(width = 3.dp.toPx())
+            style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
         )
         
         drawPath(
             path = inactivePath,
             color = inactiveColor,
-            style = Stroke(width = 3.dp.toPx())
+            style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
         )
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Preview(showBackground = true)
 @Composable
 fun RecentBookCardPreview() {
-    com.example.library.ui.theme.LibraryTheme {
+    LibraryTheme {
         RecentBookCard(
-            book = com.example.library.model.Book("1", "Clean Code", "Robert C. Martin", progress = 0.45f),
+            book = Book("1", "Clean Code", "Robert C. Martin", progress = 0.45f),
             onClick = {}
         )
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Preview(showBackground = true)
 @Composable
 fun TopRatedBookCardPreview() {
-    com.example.library.ui.theme.LibraryTheme {
+    LibraryTheme {
         TopRatedBookCard(
-            book = com.example.library.model.Book("2", "The Pragmatic Programmer", "Andy Hunt", isBookmarked = true),
+            book = Book("2", "The Pragmatic Programmer", "Andy Hunt", isBookmarked = true),
             onClick = {},
             onBookmarkClick = {}
         )
@@ -304,7 +333,7 @@ fun LibraryBookItem(
                     Spacer(modifier = Modifier.height(6.dp))
                     
                     LinearProgressIndicator(
-                        progress = book.progress,
+                        progress = { book.progress },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)

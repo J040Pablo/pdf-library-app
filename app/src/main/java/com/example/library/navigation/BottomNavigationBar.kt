@@ -1,12 +1,14 @@
 package com.example.library.navigation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -20,19 +22,21 @@ fun BottomNavigationBar(navController: NavController) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 24.dp, start = 24.dp, end = 24.dp),
+            .navigationBarsPadding()
+            .padding(bottom = 24.dp, start = 48.dp, end = 48.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = Color(0xFFF7F2FA), // Light lilac surface
+            shape = CircleShape,
+            color = Color.White, // Fully opaque
             shadowElevation = 8.dp,
-            modifier = Modifier.fillMaxWidth()
+            tonalElevation = 0.dp,
+            modifier = Modifier.wrapContentSize()
         ) {
             NavigationBar(
                 containerColor = Color.Transparent,
                 tonalElevation = 0.dp,
-                modifier = Modifier.height(80.dp)
+                modifier = Modifier.width(380.dp).height(80.dp)
             ) {
                 bottomNavItems.forEach { screen ->
                     val isSelected = currentRoute == screen.route
@@ -53,32 +57,34 @@ fun BottomNavigationBar(navController: NavController) {
                         icon = {
                             BadgedBox(
                                 badge = {
-                                    if (screen.hasBadge) {
+                                    if (screen.hasBadge || (screen == Screen.Home && !isSelected)) {
                                         Badge(
-                                            containerColor = Color.Red,
-                                            modifier = Modifier.offset(x = (-4).dp, y = 4.dp)
+                                            containerColor = Color(0xFFB3261E),
+                                            modifier = Modifier.size(6.dp).offset(x = (-2).dp, y = 2.dp)
                                         )
                                     }
                                 }
                             ) {
                                 Icon(
                                     imageVector = screen.icon,
-                                    contentDescription = screen.title
+                                    contentDescription = screen.title,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         },
                         label = {
                             Text(
                                 text = screen.title,
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF1D1B20),
-                            unselectedIconColor = Color(0xFF49454F),
-                            selectedTextColor = Color(0xFF1D1B20),
-                            unselectedTextColor = Color(0xFF49454F),
-                            indicatorColor = Color(0xFFE8DEF8) // Soft purple indicator
+                            selectedIconColor = Color(0xFF2D2D2D),
+                            unselectedIconColor = Color(0xFF2D2D2D).copy(alpha = 0.6f),
+                            selectedTextColor = Color(0xFF2D2D2D),
+                            unselectedTextColor = Color(0xFF2D2D2D).copy(alpha = 0.6f),
+                            indicatorColor = Color(0xFFE8DEF8)
                         )
                     )
                 }

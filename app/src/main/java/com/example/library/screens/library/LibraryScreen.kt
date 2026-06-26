@@ -32,6 +32,7 @@ import com.example.library.viewmodel.LibraryViewModel
 @Composable
 fun LibraryScreen(
     onSearchClick: () -> Unit,
+    paddingValues: PaddingValues = PaddingValues(0.dp),
     viewModel: LibraryViewModel = viewModel()
 ) {
     val books by viewModel.books.collectAsState()
@@ -82,11 +83,11 @@ fun LibraryScreen(
                 Icon(Icons.Default.Add, contentDescription = "Add Book", modifier = Modifier.size(28.dp))
             }
         }
-    ) { padding ->
+    ) { screenPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = screenPadding.calculateTopPadding())
                 .background(MaterialTheme.colorScheme.surface)
         ) {
             AnimatedContent(
@@ -100,9 +101,9 @@ fun LibraryScreen(
                     EmptyLibraryView { launcher.launch(arrayOf("application/pdf")) }
                 } else {
                     if (isTablet) {
-                        LibraryGrid(books, viewModel)
+                        LibraryGrid(books, viewModel, paddingValues)
                     } else {
-                        LibraryList(books, viewModel)
+                        LibraryList(books, viewModel, paddingValues)
                     }
                 }
             }
@@ -111,10 +112,12 @@ fun LibraryScreen(
 }
 
 @Composable
-fun LibraryList(books: List<Book>, viewModel: LibraryViewModel) {
+fun LibraryList(books: List<Book>, viewModel: LibraryViewModel, paddingValues: PaddingValues) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 80.dp), // Space for FAB
+        contentPadding = PaddingValues(
+            bottom = paddingValues.calculateBottomPadding() + 80.dp // Space for Nav + FAB (+ 32dp already in FAB area or handled)
+        ),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         items(books, key = { it.id }) { book ->
@@ -185,10 +188,15 @@ fun LibraryList(books: List<Book>, viewModel: LibraryViewModel) {
 }
 
 @Composable
-fun LibraryGrid(books: List<Book>, viewModel: LibraryViewModel) {
+fun LibraryGrid(books: List<Book>, viewModel: LibraryViewModel, paddingValues: PaddingValues) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 350.dp),
-        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp),
+        contentPadding = PaddingValues(
+            top = 16.dp,
+            start = 16.dp,
+            end = 16.dp,
+            bottom = paddingValues.calculateBottomPadding() + 80.dp
+        ),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

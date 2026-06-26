@@ -1,5 +1,6 @@
 package com.example.library.navigation
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -14,31 +15,42 @@ import com.example.library.screens.upload.UploadScreen
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    paddingValues: PaddingValues // Added paddingValues parameter
 ) {
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route,
-        modifier = modifier
+        modifier = Modifier // Removed padding from here to handle it inside screens
     ) {
         composable(Screen.Home.route) {
-            HomeScreen(onSearchClick = {
-                navController.navigate(Screen.Search.route)
-            })
+            HomeScreen(
+                paddingValues = paddingValues,
+                onSearchClick = {
+                    navController.navigate(Screen.Search.route)
+                }
+            )
         }
         composable(Screen.Search.route) {
-            SearchScreen()
+            SearchScreen(
+                paddingValues = paddingValues,
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
         }
         composable(Screen.Upload.route) {
-            UploadScreen()
+            UploadScreen(paddingValues = paddingValues)
         }
         composable(Screen.Library.route) {
-            LibraryScreen(onSearchClick = {
-                navController.navigate(Screen.Search.route)
-            })
+            LibraryScreen(
+                paddingValues = paddingValues,
+                onSearchClick = {
+                    navController.navigate(Screen.Search.route)
+                }
+            )
         }
         composable(Screen.Profile.route) {
-            ProfileScreen()
+            ProfileScreen(paddingValues = paddingValues)
         }
     }
 }
