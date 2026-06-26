@@ -27,12 +27,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.library.model.Book
 import com.example.library.model.User
 import com.example.library.viewmodel.ProfileViewModel
+import com.example.library.viewmodel.ThemeViewModel
+import com.example.library.data.ThemePreference
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     paddingValues: PaddingValues = PaddingValues(0.dp),
-    viewModel: ProfileViewModel = viewModel()
+    viewModel: ProfileViewModel = viewModel(),
+    themeViewModel: ThemeViewModel = viewModel()
 ) {
     val user by viewModel.user.collectAsState()
     val stats by viewModel.stats.collectAsState()
@@ -85,7 +88,7 @@ fun ProfileScreen(
 
                 // 5. Settings Section
                 item {
-                    SettingsSection()
+                    SettingsSection(themeViewModel)
                 }
             }
         }
@@ -291,12 +294,23 @@ fun GoalItem(title: String, current: Int, target: Int, unit: String) {
 }
 
 @Composable
-fun SettingsSection() {
+fun SettingsSection(themeViewModel: ThemeViewModel) {
+    val themePreference by themeViewModel.themePreference.collectAsState()
+
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Text("Configurações", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
         
-        SettingItem(Icons.Outlined.DarkMode, "Tema Escuro", "Alternar entre modo claro e escuro", hasSwitch = true)
+        SettingItem(
+            icon = Icons.Outlined.DarkMode,
+            title = "Tema Escuro",
+            subtitle = "Alternar entre modo claro e escuro",
+            hasSwitch = true,
+            checked = themePreference == ThemePreference.DARK,
+            onCheckedChange = { isChecked ->
+                themeViewModel.setTheme(if (isChecked) ThemePreference.DARK else ThemePreference.LIGHT)
+            }
+        )
         SettingItem(Icons.Outlined.Notifications, "Notificações", "Alertas e lembretes de leitura")
         SettingItem(Icons.Outlined.CloudUpload, "Backup", "Sincronizar dados na nuvem")
         SettingItem(Icons.Outlined.Info, "Sobre o aplicativo", "Versão e desenvolvedores")
@@ -304,7 +318,14 @@ fun SettingsSection() {
 }
 
 @Composable
-fun SettingItem(icon: ImageVector, title: String, subtitle: String, hasSwitch: Boolean = false) {
+fun SettingItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    hasSwitch: Boolean = false,
+    checked: Boolean = false,
+    onCheckedChange: (Boolean) -> Unit = {}
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -319,8 +340,7 @@ fun SettingItem(icon: ImageVector, title: String, subtitle: String, hasSwitch: B
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (hasSwitch) {
-            var checked by remember { mutableStateOf(false) }
-            Switch(checked = checked, onCheckedChange = { checked = it })
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
         } else {
             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
         }

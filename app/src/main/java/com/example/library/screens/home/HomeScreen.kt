@@ -28,7 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.library.ui.components.RecentBookCard
 import com.example.library.ui.components.TopRatedBookCard
-import com.example.library.ui.theme.*
+import com.example.library.ui.theme.Dimens
+import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.BookViewModel
 import kotlin.math.cos
 import kotlin.math.sin
@@ -51,10 +52,10 @@ val SunnyShape = object : Shape {
 
             for (i in 0..numSegments) {
                 val angle = (i.toFloat() / numSegments) * 2f * Math.PI.toFloat()
-                val r = avgRadius + amplitude * kotlin.math.cos(numPoints * angle)
-                val x = center.x + r * kotlin.math.cos(angle - (Math.PI / 2).toFloat())
-                val y = center.y + r * kotlin.math.sin(angle - (Math.PI / 2).toFloat())
-                
+                val r = avgRadius + amplitude * cos(numPoints * angle)
+                val x = center.x + r * cos(angle - (Math.PI / 2).toFloat())
+                val y = center.y + r * sin(angle - (Math.PI / 2).toFloat())
+
                 if (i == 0) moveTo(x, y) else lineTo(x, y)
             }
             close()
@@ -67,41 +68,43 @@ val SunnyShape = object : Shape {
 @Composable
 fun HomeScreen(
     onSearchClick: () -> Unit,
-    paddingValues: PaddingValues = PaddingValues(0.dp),
+    paddingValues: PaddingValues = PaddingValues(Dimens.CornerSmall),
     viewModel: BookViewModel = viewModel()
 ) {
     val recentBooks by viewModel.recentBooks.collectAsState()
     val topRatedBooks by viewModel.topRatedBooks.collectAsState()
-    
+
     var showNotifications by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
-    
-    // Mocking notification count
-    val notificationCount = 0 
+
+    // Notification count — replace with real state/ViewModel when available
+    val notificationCount = 0
+
+    // Notification button colour — uses primary from MaterialTheme (adapts to light/dark)
+    val notifButtonColor = MaterialTheme.colorScheme.primary
 
     Scaffold(
-        containerColor = AppBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         text = "App",
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = TextTitle
-                    ) 
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AppBackground,
-                    navigationIconContentColor = TextTitle,
-                    actionIconContentColor = TextTitle,
-                    titleContentColor = TextTitle
+                    containerColor = MaterialTheme.colorScheme.background,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 ),
-                windowInsets = WindowInsets(0),
                 navigationIcon = {
                     IconButton(onClick = { /* TODO */ }) {
                         Icon(
-                            imageVector = Icons.Default.Menu, 
+                            imageVector = Icons.Default.Menu,
                             contentDescription = "Menu"
                         )
                     }
@@ -109,41 +112,45 @@ fun HomeScreen(
                 actions = {
                     IconButton(onClick = onSearchClick) {
                         Icon(
-                            imageVector = Icons.Default.Search, 
+                            imageVector = Icons.Default.Search,
                             contentDescription = "Search"
                         )
                     }
-                    
-                    // Notification Button with Sunny Shape
+
+                    // Notification Button — SunnyShape, primary colour
                     Box(
                         modifier = Modifier
-                            .padding(end = 16.dp)
-                            .size(50.dp)
+                            .padding(end = Spacing.Medium)
+                            .size(Dimens.NotificationButtonSize)
                             .clip(SunnyShape)
-                            .background(WavyActive) // Using the Figma purple
+                            .background(notifButtonColor)
                             .clickable { showNotifications = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        // Bell Icon
                         Icon(
                             imageVector = Icons.Default.Notifications,
                             contentDescription = "Notifications",
-                            tint = Color.White,
-                            modifier = Modifier.size(26.dp)
+                            tint = Color(0xFFF8F5FF),
+                            modifier = Modifier.size(Dimens.NotificationIconSize)
                         )
-                        
-                        // Red dot badge in the top right corner
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp),
-                            contentAlignment = Alignment.TopEnd
-                        ) {
+
+                        // Badge dot — only shown when there are unread notifications
+                        if (notificationCount > 0) {
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
-                                    .background(Color.Red, androidx.compose.foundation.shape.CircleShape)
-                            )
+                                    .fillMaxSize()
+                                    .padding(Spacing.SMedium),
+                                contentAlignment = Alignment.TopEnd
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(Dimens.BadgeDotSize)
+                                        .background(
+                                            MaterialTheme.colorScheme.error,
+                                            androidx.compose.foundation.shape.CircleShape
+                                        )
+                                )
+                            }
                         }
                     }
                 }
@@ -156,52 +163,47 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(top = screenPadding.calculateTopPadding()),
             contentPadding = PaddingValues(
-                start = 16.dp, 
-                end = 16.dp, 
-                bottom = paddingValues.calculateBottomPadding() + 32.dp
+                start = Spacing.Medium,
+                end = Spacing.Medium,
+                // Scaffold bottom padding (nav bar insets) + extra breathing room
+                bottom = paddingValues.calculateBottomPadding() + Spacing.Large + 24.dp
             ),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(Spacing.Medium)
         ) {
-            // Header: Recents
+            // Extra top breathing room before "Recents" — matches Figma vertical rhythm
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     text = "Recents",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-                    color = TextTitle
+                    modifier = Modifier.padding(top = Spacing.Large + 14.dp, bottom = Spacing.Small),
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
-            
-            // Recents LazyRow
+
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(end = 64.dp) // Ensures ~2.2 books visibility
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.Medium),
+                    contentPadding = PaddingValues(end = Dimens.NotificationButtonSize + Spacing.Medium)
                 ) {
                     items(recentBooks) { book ->
-                        RecentBookCard(
-                            book = book,
-                            onClick = { /* TODO */ }
-                        )
+                        RecentBookCard(book = book, onClick = { /* TODO */ })
                     }
                 }
             }
-            
-            // Header: Top Rated (Matching Figma)
+
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     text = "Top Rated",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
-                    color = TextTitle
+                    modifier = Modifier.padding(top = Spacing.Large, bottom = Spacing.Small),
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
-            
-            // Grid of all books (Fixed 2 columns)
+
             items(topRatedBooks) { book ->
                 TopRatedBookCard(
                     book = book,
@@ -215,27 +217,34 @@ fun HomeScreen(
     if (showNotifications) {
         ModalBottomSheet(
             onDismissRequest = { showNotifications = false },
-            sheetState = sheetState
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            dragHandle = {
+                BottomSheetDefaults.DragHandle(
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(32.dp),
+                    .padding(Spacing.XLarge),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = "Notifications",
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(Spacing.Large))
                 Text(
                     text = "Nenhuma notificação.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(Spacing.XXLarge))
             }
         }
     }
@@ -245,6 +254,15 @@ fun HomeScreen(
 @Composable
 fun HomeScreenPreview() {
     com.example.library.ui.theme.LibraryTheme {
+        HomeScreen(onSearchClick = {})
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, showSystemUi = true,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun HomeScreenDarkPreview() {
+    com.example.library.ui.theme.LibraryTheme(darkTheme = true) {
         HomeScreen(onSearchClick = {})
     }
 }

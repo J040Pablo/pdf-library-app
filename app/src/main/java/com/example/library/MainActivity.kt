@@ -4,18 +4,38 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.example.library.data.ThemePreference
 import com.example.library.ui.theme.LibraryTheme
+import com.example.library.viewmodel.ThemeViewModel
 
 class MainActivity : ComponentActivity() {
+
+    // ThemeViewModel uses AndroidViewModel — no factory needed when using viewModels()
+    private val themeViewModel: ThemeViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Ativa o suporte de ponta a ponta (edge-to-edge)
+
+        // Edge-to-edge: status bar and nav bar are rendered transparently.
+        // Their icon colours are adjusted in LibraryTheme's SideEffect.
         enableEdgeToEdge()
-        
+
         setContent {
-            LibraryTheme {
-                MainScreen()
+            val preference by themeViewModel.themePreference.collectAsState()
+
+            // Resolve SYSTEM preference here — the only place isSystemInDarkTheme() is called.
+            val isDark = when (preference) {
+                ThemePreference.LIGHT -> false
+                ThemePreference.DARK -> true
+                ThemePreference.SYSTEM -> isSystemInDarkTheme()
+            }
+
+            LibraryTheme(darkTheme = isDark) {
+                MainScreen(themeViewModel = themeViewModel)
             }
         }
     }

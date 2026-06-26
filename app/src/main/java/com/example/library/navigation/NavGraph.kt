@@ -11,16 +11,18 @@ import com.example.library.screens.profile.ProfileScreen
 import com.example.library.screens.search.SearchScreen
 import com.example.library.screens.library.LibraryScreen
 import com.example.library.screens.upload.UploadScreen
+import com.example.library.viewmodel.ThemeViewModel
 
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    paddingValues: PaddingValues // Added paddingValues parameter
+    paddingValues: PaddingValues,
+    themeViewModel: ThemeViewModel
 ) {
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route,
-        modifier = Modifier // Removed padding from here to handle it inside screens
+        modifier = Modifier
     ) {
         composable(Screen.Home.route) {
             HomeScreen(
@@ -50,7 +52,10 @@ fun NavGraph(
             )
         }
         composable(Screen.Profile.route) {
-            ProfileScreen(paddingValues = paddingValues)
+            ProfileScreen(
+                paddingValues = paddingValues,
+                themeViewModel = themeViewModel
+            )
         }
     }
 }

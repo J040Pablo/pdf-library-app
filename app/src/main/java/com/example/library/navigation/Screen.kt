@@ -11,13 +11,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 sealed class Screen(
     val route: String,
     val title: String,
-    val icon: ImageVector,
-    val hasBadge: Boolean = false
+    val icon: ImageVector
 ) {
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Upload : Screen("upload", "Upload", Icons.Default.FileUpload)
     object Library : Screen("library", "Library", Icons.Default.AutoStories)
-    object Profile : Screen("profile", "Profile", Icons.Default.Person, hasBadge = true)
+    object Profile : Screen("profile", "Profile", Icons.Default.Person)
     object Search : Screen("search", "Search", Icons.Default.Search)
 }
 

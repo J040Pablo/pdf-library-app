@@ -13,6 +13,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.library.ui.theme.Dimens
+import com.example.library.ui.theme.Elevation
+import com.example.library.ui.theme.Spacing
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
@@ -23,24 +26,31 @@ fun BottomNavigationBar(navController: NavController) {
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(bottom = 24.dp, start = 48.dp, end = 48.dp),
+            .padding(
+                bottom = Spacing.Large,
+                start = Spacing.XXLarge,
+                end = Spacing.XXLarge
+            ),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
             shape = CircleShape,
-            color = Color.White, // Fully opaque
-            shadowElevation = 8.dp,
-            tonalElevation = 0.dp,
+            // Uses MaterialTheme surface — adapts to light/dark automatically
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = Elevation.High,
+            tonalElevation = Elevation.None,
             modifier = Modifier.wrapContentSize()
         ) {
             NavigationBar(
                 containerColor = Color.Transparent,
-                tonalElevation = 0.dp,
-                modifier = Modifier.width(380.dp).height(80.dp)
+                tonalElevation = Elevation.None,
+                modifier = Modifier
+                    .width(Dimens.BottomNavWidth)
+                    .height(Dimens.BottomNavHeight)
             ) {
                 bottomNavItems.forEach { screen ->
                     val isSelected = currentRoute == screen.route
-                    
+
                     NavigationBarItem(
                         selected = isSelected,
                         onClick = {
@@ -55,22 +65,11 @@ fun BottomNavigationBar(navController: NavController) {
                             }
                         },
                         icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (screen.hasBadge || (screen == Screen.Home && !isSelected)) {
-                                        Badge(
-                                            containerColor = Color(0xFFB3261E),
-                                            modifier = Modifier.size(6.dp).offset(x = (-2).dp, y = 2.dp)
-                                        )
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = screen.icon,
-                                    contentDescription = screen.title,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = screen.icon,
+                                contentDescription = screen.title,
+                                modifier = Modifier.size(Dimens.IconMedium)
+                            )
                         },
                         label = {
                             Text(
@@ -80,11 +79,14 @@ fun BottomNavigationBar(navController: NavController) {
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFF2D2D2D),
-                            unselectedIconColor = Color(0xFF2D2D2D).copy(alpha = 0.6f),
-                            selectedTextColor = Color(0xFF2D2D2D),
-                            unselectedTextColor = Color(0xFF2D2D2D).copy(alpha = 0.6f),
-                            indicatorColor = Color(0xFFE8DEF8)
+                            // Selected icon & label — primary colour
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            // Unselected icon & label — muted surface variant
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // Active indicator uses primaryContainer
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
                         )
                     )
                 }

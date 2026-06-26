@@ -2,42 +2,107 @@ package com.example.library.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary Colors
-val PrimaryLight = Color(0xFF0061A4)
+// =============================================================================
+// LIGHT THEME — Purple/Indigo identity (Figma source of truth)
+// =============================================================================
+
+// Primary
+val PrimaryLight = Color(0xFF6259A6)          // Notification button & brand accent
 val OnPrimaryLight = Color(0xFFFFFFFF)
-val PrimaryContainerLight = Color(0xFFD1E4FF)
-val OnPrimaryContainerLight = Color(0xFF001D36)
+val PrimaryContainerLight = Color(0xFFE8DEF8)
+val OnPrimaryContainerLight = Color(0xFF1E1047)
 
-val SecondaryLight = Color(0xFF535F70)
+// Secondary
+val SecondaryLight = Color(0xFF625B71)
 val OnSecondaryLight = Color(0xFFFFFFFF)
-val SecondaryContainerLight = Color(0xFFD7E3F7)
-val OnSecondaryContainerLight = Color(0xFF101C2B)
+val SecondaryContainerLight = Color(0xFFE8DEF8)
+val OnSecondaryContainerLight = Color(0xFF1E192B)
 
-val TertiaryLight = Color(0xFF6B5778)
+// Tertiary
+val TertiaryLight = Color(0xFF7E5260)
 val OnTertiaryLight = Color(0xFFFFFFFF)
-val TertiaryContainerLight = Color(0xFFF2DAFF)
-val OnTertiaryContainerLight = Color(0xFF251431)
+val TertiaryContainerLight = Color(0xFFFFD8E4)
+val OnTertiaryContainerLight = Color(0xFF31111D)
 
-// Dark Mode Colors
-val PrimaryDark = Color(0xFF9ECAFF)
-val OnPrimaryDark = Color(0xFF003258)
-val PrimaryContainerDark = Color(0xFF00497D)
-val OnPrimaryContainerDark = Color(0xFFD1E4FF)
+// Background & Surface
+val BackgroundLight = Color(0xFFFCFCFC)
+val OnBackgroundLight = Color(0xFF2D2D2D)
+val SurfaceLight = Color(0xFFFFFFFF)
+val OnSurfaceLight = Color(0xFF2D2D2D)
+val SurfaceVariantLight = Color(0xFFEEEAF4)
+val OnSurfaceVariantLight = Color(0xFF49454F)
 
-val SecondaryDark = Color(0xFFBBC7DB)
-val OnSecondaryDark = Color(0xFF253140)
-val SecondaryContainerDark = Color(0xFF3B4858)
-val OnSecondaryContainerDark = Color(0xFFD7E3F7)
+// Outline
+val OutlineLight = Color(0xFF7F7589)
+val OutlineVariantLight = Color(0xFFCBC4D0)
 
-val TertiaryDark = Color(0xFFD6BEE4)
-val OnTertiaryDark = Color(0xFF3B2948)
-val TertiaryContainerDark = Color(0xFF523F5F)
-val OnTertiaryContainerDark = Color(0xFFF2DAFF)
-// Figma Specific Colors
-val AppBackground = Color(0xFFFCFCFC)
-val CardBackground = Color(0xFFF5F5F5)
-val CoverBackground = Color(0xFFECE6F6)
-val WavyActive = Color(0xFF6B5DAA)
-val WavyInactive = Color(0xFFE0D9F5)
-val TextTitle = Color(0xFF2D2D2D)
-val TextAuthor = Color(0xFF808080)
+// Error
+val ErrorLight = Color(0xFFB3261E)
+val OnErrorLight = Color(0xFFFFFFFF)
+val ErrorContainerLight = Color(0xFFF9DEDC)
+val OnErrorContainerLight = Color(0xFF410E0B)
+
+// =============================================================================
+// DARK THEME — Matching purple/lilac identity
+// =============================================================================
+
+// Primary
+val PrimaryDark = Color(0xFFB69CFF)           // Vibrant lilac — brand accent in dark
+val OnPrimaryDark = Color(0xFF2B1D6B)
+val PrimaryContainerDark = Color(0xFF43385F)
+val OnPrimaryContainerDark = Color(0xFFE8DEF8)
+
+// Secondary
+val SecondaryDark = Color(0xFFCBC2DB)
+val OnSecondaryDark = Color(0xFF332D41)
+val SecondaryContainerDark = Color(0xFF302848)
+val OnSecondaryContainerDark = Color(0xFFE8DEF8)
+
+// Tertiary
+val TertiaryDark = Color(0xFFEFB8C8)
+val OnTertiaryDark = Color(0xFF4A2532)
+val TertiaryContainerDark = Color(0xFF633B48)
+val OnTertiaryContainerDark = Color(0xFFFFD8E4)
+
+// Background & Surface
+val BackgroundDark = Color(0xFF1C1B1F)
+val OnBackgroundDark = Color(0xFFE6E1E5)
+val SurfaceDark = Color(0xFF1C1B1F)
+val OnSurfaceDark = Color(0xFFE6E1E5)
+val SurfaceVariantDark = Color(0xFF2D2B35)
+val OnSurfaceVariantDark = Color(0xFFCBC4D0)
+
+// Outline
+val OutlineDark = Color(0xFF958E9F)
+val OutlineVariantDark = Color(0xFF49454F)
+
+// Error
+val ErrorDark = Color(0xFFF2B8B5)
+val OnErrorDark = Color(0xFF601410)
+val ErrorContainerDark = Color(0xFF8C1D18)
+val OnErrorContainerDark = Color(0xFFF9DEDC)
+
+// =============================================================================
+// DESIGN TOKENS — UI-specific, not part of MaterialTheme color slots
+// =============================================================================
+
+/** Wavy progress bar — active wave color, theme-adaptive.
+ *  Light: original Figma purple. Dark: lilac primary.
+ *  Resolved in composable via MaterialTheme.colorScheme.primary.
+ */
+val WavyActiveLight = Color(0xFF6B5DAA)
+val WavyActiveDark = Color(0xFFB69CFF)
+
+/** Wavy progress bar — inactive wave color, theme-adaptive. */
+val WavyInactiveLight = Color(0xFFE0D9F5)
+val WavyInactiveDark = Color(0xFF43385F)
+
+/** Book cover placeholder background.
+ *  Light: soft lilac. Dark: resolved via MaterialTheme.colorScheme.secondaryContainer.
+ */
+val CoverBackgroundLight = Color(0xFFECE6F6)
+
+/** Card background (home / search).
+ *  Light: near-white. Dark: resolved via MaterialTheme.colorScheme.surfaceVariant.
+ */
+val CardBackgroundLight = Color(0xFFF5F5F5)

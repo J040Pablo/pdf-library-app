@@ -31,6 +31,7 @@ fun ReadingIllustration(modifier: Modifier = Modifier) {
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.secondaryContainer
+    val surfaceColor = MaterialTheme.colorScheme.surface
     val onSurface = MaterialTheme.colorScheme.onSurfaceVariant
 
     Canvas(modifier = modifier.size(280.dp)) {
@@ -49,7 +50,7 @@ fun ReadingIllustration(modifier: Modifier = Modifier) {
         
         // Tablet screen
         drawRoundRect(
-            color = Color.White.copy(alpha = 0.5f),
+            color = surfaceColor.copy(alpha = 0.5f),
             topLeft = Offset(centerX - 70, centerY - 50 + floatOffset),
             size = Size(140f, 200f),
             cornerRadius = CornerRadius(8f, 8f)
@@ -74,7 +75,7 @@ fun ReadingIllustration(modifier: Modifier = Modifier) {
         // Book lines (pages)
         drawPath(
             path = bookPath,
-            color = Color.White.copy(alpha = 0.3f),
+            color = surfaceColor.copy(alpha = 0.3f),
             style = Stroke(width = 2f)
         )
         
