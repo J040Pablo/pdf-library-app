@@ -152,7 +152,11 @@ private fun SharedTransitionScope.CollectionDetailContent(
             ) {
                 // Header: stacked cover + description
                 item {
-                    CollectionHeader(collection = collection, books = books)
+                    CollectionHeader(
+                        collection = collection,
+                        books = books,
+                        animatedVisibilityScope = animatedVisibilityScope
+                    )
                 }
 
                 items(books, key = { it.id }) { book ->
@@ -187,7 +191,11 @@ private fun SharedTransitionScope.CollectionDetailContent(
 }
 
 @Composable
-private fun CollectionHeader(collection: Collection, books: List<Book>) {
+private fun SharedTransitionScope.CollectionHeader(
+    collection: Collection,
+    books: List<Book>,
+    animatedVisibilityScope: AnimatedVisibilityScope
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -196,11 +204,17 @@ private fun CollectionHeader(collection: Collection, books: List<Book>) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.Medium)
     ) {
-        // Show custom cover if set, otherwise stacked book thumbnails
+        // Destination of the Shared Element transition — same key as origin in LibraryScreen
         CollectionCoverThumbnail(
             coverUri = collection.coverUri,
             books = books.take(2),
-            modifier = Modifier.size(width = 180.dp, height = 240.dp)
+            modifier = Modifier.size(width = 180.dp, height = 240.dp),
+            frontCoverModifier = Modifier.sharedElement(
+                rememberSharedContentState(key = "collection-cover-${collection.id}"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(durationMillis = 400) },
+                clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCoverInner))
+            )
         )
 
         if (collection.description.isNotBlank()) {

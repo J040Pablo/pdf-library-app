@@ -28,6 +28,12 @@ import com.example.library.viewmodel.CollectionViewModel
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import com.example.library.ui.theme.Dimens
+import com.example.library.ui.theme.Spacing
+import com.example.library.screens.home.SunnyShape
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -105,14 +111,22 @@ fun SharedTransitionScope.LibraryScreen(
                         IconButton(onClick = onSearchClick) {
                             Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(28.dp))
                         }
-                        FilledIconButton(
-                            onClick = onCreateCollectionClick,
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
+                        // "Nova Collection" pill button — same design language as the notification button in Home
+                        Box(
+                            modifier = Modifier
+                                .padding(end = Spacing.Medium)
+                                .size(Dimens.NotificationButtonSize)
+                                .clip(SunnyShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                                .clickable(onClick = onCreateCollectionClick),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "New Collection", modifier = Modifier.size(24.dp))
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Nova Collection",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(Dimens.NotificationIconSize)
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -169,7 +183,13 @@ fun SharedTransitionScope.LibraryScreen(
                                 onLongClick = {
                                     selectedCollectionIds = selectedCollectionIds + collection.id
                                 },
-                                modifier = Modifier.animateItem()
+                                modifier = Modifier.animateItem(),
+                                coverModifier = Modifier.sharedElement(
+                                    rememberSharedContentState(key = "collection-cover-${collection.id}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    boundsTransform = { _, _ -> tween(durationMillis = 400) },
+                                    clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCoverInner))
+                                )
                             )
                         }
                     }

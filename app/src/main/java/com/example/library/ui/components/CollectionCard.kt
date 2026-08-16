@@ -43,7 +43,8 @@ fun CollectionCard(
     isSelected: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier
 ) {
     val bookCount = collection.bookIds.size
 
@@ -84,7 +85,8 @@ fun CollectionCard(
             CollectionCoverThumbnail(
                 coverUri = collection.coverUri,
                 books = books.take(2),
-                modifier = Modifier.size(width = 72.dp, height = 96.dp)
+                modifier = Modifier.size(width = 72.dp, height = 96.dp),
+                frontCoverModifier = coverModifier
             )
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -138,7 +140,8 @@ fun CollectionCard(
 fun CollectionCoverThumbnail(
     coverUri: String?,
     books: List<Book>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    frontCoverModifier: Modifier = Modifier
 ) {
     val realBooks = books.take(3)
 
@@ -191,6 +194,7 @@ fun CollectionCoverThumbnail(
             modifier = Modifier
                 .fillMaxSize(0.82f)
                 .align(Alignment.BottomStart)
+                .then(frontCoverModifier)
                 .clip(RoundedCornerShape(Dimens.CornerCoverInner)),
             shadowElevation = 4.dp,
             tonalElevation = 2.dp,
