@@ -17,6 +17,9 @@ private const val RECENT_BOOKS_LIMIT = 5
 @OptIn(ExperimentalCoroutinesApi::class)
 class BookViewModel : ViewModel() {
 
+    /** All books in the repository — used by selection/delete logic in HomeScreen. */
+    val allBooks: StateFlow<List<Book>> = BookRepository.books
+
     /**
      * The 5 most-recently added books, newest first.
      * Derived reactively from [BookRepository.books] — updates instantly whenever
@@ -31,16 +34,23 @@ class BookViewModel : ViewModel() {
         )
 
     /**
-     * All books sorted by rating (highest first), including newly imported ones
-     * whose rating is 0f — they appear at the end rather than being filtered out.
+     * All books in user custom order.
+     * Derived reactively from [BookRepository.books] — updates instantly whenever
+     * books are added, removed, updated, or reordered.
      */
     val topRatedBooks: StateFlow<List<Book>> = BookRepository.books
-        .map { books -> books.sortedByDescending { it.rating } }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = BookRepository.books.value.sortedByDescending { it.rating }
-        )
+
+    /** Removes a set of books (and their collection references) in one operation. */
+    fun removeBooks(bookIds: Set<String>) = BookRepository.removeBooks(bookIds)
+
+    /** Updates a single book (e.g. after editing metadata). */
+    fun updateBook(book: Book) = BookRepository.updateBook(book)
+
+    /** Toggles bookmark (saved) state for a book and persists it. */
+    fun toggleBookmark(bookId: String) = BookRepository.toggleBookmark(bookId)
+
+    /** Updates the custom display order of books and persists it. */
+    fun updateBookOrder(newOrder: List<Book>) = BookRepository.updateBookOrder(newOrder)
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()

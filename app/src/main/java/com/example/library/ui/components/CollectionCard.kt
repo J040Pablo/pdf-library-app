@@ -29,11 +29,23 @@ import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.LibraryTheme
 import com.example.library.ui.theme.Spacing
 
+fun getEffectiveCollectionCover(
+    collection: Collection,
+    books: List<Book>
+): String? {
+    val firstBook = collection.bookIds
+        .firstOrNull()
+        ?.let { id -> books.firstOrNull { it.id == id } }
+
+    return firstBook?.coverUrl
+        ?: collection.coverUri
+}
+
 /**
  * A card that represents a single Collection in the library list.
  *
  * When the collection has a user-selected [Collection.coverUri] it is shown
- * as the card's leading image.  Otherwise the stacked-book placeholder is used.
+ * as the card's leading image. Otherwise the stacked-book placeholder is used.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -41,7 +53,7 @@ fun CollectionCard(
     collection: Collection,
     books: List<Book>,
     isSelected: Boolean = false,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier
@@ -53,10 +65,14 @@ fun CollectionCard(
     else 
         MaterialTheme.colorScheme.surfaceContainerHigh
 
+    val clickModifier = if (onClick != null) {
+        Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    } else Modifier
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .then(clickModifier)
             .then(
                 if (isSelected) Modifier.border(
                     2.dp,
@@ -81,10 +97,12 @@ fun CollectionCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.Medium)
         ) {
-            // Cover: custom image if set, otherwise stacked placeholder
+            val effectiveCoverUri = getEffectiveCollectionCover(collection, books)
+
+            // Cover: first book cover if available, user custom image if set, otherwise generic placeholder
             CollectionCoverThumbnail(
-                coverUri = collection.coverUri,
-                books = books.take(2),
+                coverUri = effectiveCoverUri,
+                books = books.take(3),
                 modifier = Modifier.size(width = 72.dp, height = 96.dp),
                 frontCoverModifier = coverModifier
             )

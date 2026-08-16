@@ -32,6 +32,9 @@ sealed class Screen(
     object Reading : Screen("reading/{bookId}/{chapterId}", "Reading", Icons.Default.AutoStories) {
         fun createRoute(bookId: String, chapterId: String) = "reading/$bookId/$chapterId"
     }
+    object EditBook : Screen("edit_book/{bookId}", "Edit Book", Icons.Default.AutoStories) {
+        fun createRoute(bookId: String) = "edit_book/$bookId"
+    }
 }
 
 val bottomNavItems = listOf(

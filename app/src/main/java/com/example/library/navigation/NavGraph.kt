@@ -18,6 +18,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import com.example.library.screens.bookdetail.BookDetailScreen
 import com.example.library.screens.collectiondetail.CollectionDetailScreen
 import com.example.library.screens.createcollection.CreateCollectionScreen
+import com.example.library.screens.editbook.EditBookScreen
 import com.example.library.screens.home.HomeScreen
 import com.example.library.screens.profile.ProfileScreen
 import com.example.library.screens.search.SearchScreen
@@ -84,6 +85,9 @@ fun NavGraph(
                     },
                     onBookClick = { bookId, origin ->
                         navController.navigate(Screen.BookDetail.createRoute(bookId, origin))
+                    },
+                    onEditBookClick = { bookId ->
+                        navController.navigate(Screen.EditBook.createRoute(bookId))
                     }
                 )
             }
@@ -175,6 +179,16 @@ fun NavGraph(
                     bookId = bookId,
                     chapterId = chapterId,
                     onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = Screen.EditBook.route
+            ) { backStackEntry ->
+                val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
+                EditBookScreen(
+                    bookId = bookId,
+                    onSave = { navController.popBackStack() },
+                    onCancel = { navController.popBackStack() }
                 )
             }
             composable(

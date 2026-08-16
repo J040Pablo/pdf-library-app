@@ -14,6 +14,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
@@ -33,11 +36,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.library.ui.components.RecentBookCard
 import com.example.library.ui.components.TopRatedBookCard
+import com.example.library.ui.components.reorderableItemGesture
 import com.example.library.ui.theme.Dimens
+import kotlin.math.roundToInt
 import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.BookViewModel
 import kotlin.math.cos
 import kotlin.math.sin
+
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 
 // Custom 8-pointed "Sunny" shape for notifications (Figma style)
 val SunnyShape = object : Shape {
@@ -69,17 +79,39 @@ val SunnyShape = object : Shape {
     }
 }
 
+data class DragState(
+    val itemId: String,
+    val initialIndex: Int,
+    val currentIndex: Int,
+    val pointerOffset: Offset
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun SharedTransitionScope.HomeScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
     onSearchClick: () -> Unit,
     onBookClick: (String, String) -> Unit = { _, _ -> },
+    onEditBookClick: (String) -> Unit = {},
     paddingValues: PaddingValues = PaddingValues(Dimens.CornerSmall),
     viewModel: BookViewModel = viewModel()
 ) {
     val recentBooks by viewModel.recentBooks.collectAsState()
     val topRatedBooks by viewModel.topRatedBooks.collectAsState()
+
+    var localTopRatedBooks by remember(topRatedBooks) { mutableStateOf(topRatedBooks) }
+    var topRatedDragState by remember { mutableStateOf<DragState?>(null) }
+    var dragReadyTopRatedId by remember { mutableStateOf<String?>(null) }
+
+    var localRecentBooks by remember(recentBooks) { mutableStateOf(recentBooks) }
+    var recentDragState by remember { mutableStateOf<DragState?>(null) }
+    var dragReadyRecentId by remember { mutableStateOf<String?>(null) }
+
+    val density = LocalDensity.current
+
+    // ── Selection state ───────────────────────────────────────────────────────
+    var selectedBookIds by remember { mutableStateOf(setOf<String>()) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     var showNotifications by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -90,78 +122,163 @@ fun SharedTransitionScope.HomeScreen(
     // Notification button colour — uses primary from MaterialTheme (adapts to light/dark)
     val notifButtonColor = MaterialTheme.colorScheme.primary
 
+    // ── Delete confirmation dialog ─────────────────────────────────────────────
+    if (showDeleteConfirmation) {
+        val count = selectedBookIds.size
+        val title = if (count == 1) {
+            val bookTitle = recentBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
+                ?: topRatedBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
+                ?: "este livro"
+            "Excluir livro?"
+        } else {
+            "Excluir livros?"
+        }
+        val message = if (count == 1) {
+            val bookTitle = recentBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
+                ?: topRatedBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
+                ?: "este livro"
+            "Tem certeza que deseja excluir \"$bookTitle\"? Essa ação não poderá ser desfeita."
+        } else {
+            "Você está prestes a excluir $count livros. Essa ação não poderá ser desfeita."
+        }
+
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text(title, fontWeight = FontWeight.Bold) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.removeBooks(selectedBookIds)
+                        selectedBookIds = emptySet()
+                        showDeleteConfirmation = false
+                    }
+                ) {
+                    Text(
+                        "Excluir",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "App",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+            if (selectedBookIds.isNotEmpty()) {
+                // ── Selection-mode TopAppBar ───────────────────────────────────
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "${selectedBookIds.size} selecionado${if (selectedBookIds.size == 1) "" else "s"}",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedBookIds = emptySet() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancelar seleção")
+                        }
+                    },
+                    actions = {
+                        // Edit — only when exactly one book is selected
+                        if (selectedBookIds.size == 1) {
+                            IconButton(onClick = {
+                                val id = selectedBookIds.first()
+                                selectedBookIds = emptySet()
+                                onEditBookClick(id)
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Editar")
+                            }
+                        }
+                        // Delete — always available in selection mode
+                        IconButton(onClick = { showDeleteConfirmation = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Excluir")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-                    actionIconContentColor = MaterialTheme.colorScheme.onBackground,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                ),
-                navigationIcon = {
-                    IconButton(onClick = { /* TODO */ }) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Menu"
+                )
+            } else {
+                // ── Normal TopAppBar ──────────────────────────────────────────
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "App",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onSearchClick) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search"
-                        )
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                        actionIconContentColor = MaterialTheme.colorScheme.onBackground,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = { /* TODO */ }) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Menu"
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onSearchClick) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search"
+                            )
+                        }
 
-                    // Notification Button — SunnyShape, primary colour
-                    Box(
-                        modifier = Modifier
-                            .padding(end = Spacing.Medium)
-                            .size(Dimens.NotificationButtonSize)
-                            .clip(SunnyShape)
-                            .background(notifButtonColor)
-                            .clickable { showNotifications = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notifications",
-                            tint = Color(0xFFF8F5FF),
-                            modifier = Modifier.size(Dimens.NotificationIconSize)
-                        )
+                        // Notification Button — SunnyShape, primary colour
+                        Box(
+                            modifier = Modifier
+                                .padding(end = Spacing.Medium)
+                                .size(Dimens.NotificationButtonSize)
+                                .clip(SunnyShape)
+                                .background(notifButtonColor)
+                                .clickable { showNotifications = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color(0xFFF8F5FF),
+                                modifier = Modifier.size(Dimens.NotificationIconSize)
+                            )
 
-                        // Badge dot — only shown when there are unread notifications
-                        if (notificationCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(Spacing.SMedium),
-                                contentAlignment = Alignment.TopEnd
-                            ) {
+                            // Badge dot — only shown when there are unread notifications
+                            if (notificationCount > 0) {
                                 Box(
                                     modifier = Modifier
-                                        .size(Dimens.BadgeDotSize)
-                                        .background(
-                                            MaterialTheme.colorScheme.error,
-                                            androidx.compose.foundation.shape.CircleShape
-                                        )
-                                )
+                                        .fillMaxSize()
+                                        .padding(Spacing.SMedium),
+                                    contentAlignment = Alignment.TopEnd
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(Dimens.BadgeDotSize)
+                                            .background(
+                                                MaterialTheme.colorScheme.error,
+                                                androidx.compose.foundation.shape.CircleShape
+                                            )
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            )
+                )
+            }
         }
     ) { screenPadding ->
         if (recentBooks.isEmpty() && topRatedBooks.isEmpty()) {
@@ -242,10 +359,92 @@ fun SharedTransitionScope.HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.Medium),
                         contentPadding = PaddingValues(end = Dimens.NotificationButtonSize + Spacing.Medium)
                     ) {
-                        items(recentBooks) { book ->
+                        items(localRecentBooks, key = { it.id }) { book ->
+                            val isSelected = book.id in selectedBookIds
+                            val isDragging = recentDragState?.itemId == book.id
+                            val isDragReady = dragReadyRecentId == book.id
+
                             RecentBookCard(
-                                book = book, 
-                                onClick = { onBookClick(book.id, "recent") },
+                                book = book,
+                                isSelected = isSelected,
+                                onClick = null,
+                                onBookmarkClick = { viewModel.toggleBookmark(book.id) },
+                                modifier = Modifier
+                                    .then(if (isDragging) Modifier else Modifier.animateItem())
+                                    .zIndex(if (isDragging) 100f else if (isDragReady) 10f else 0f)
+                                    .reorderableItemGesture(
+                                        itemId = book.id,
+                                        isSelectedModeActive = selectedBookIds.isNotEmpty(),
+                                        onTap = {
+                                            if (selectedBookIds.isNotEmpty()) {
+                                                selectedBookIds = if (isSelected) selectedBookIds - book.id else selectedBookIds + book.id
+                                            } else {
+                                                onBookClick(book.id, "recent")
+                                            }
+                                        },
+                                        onLongPress = {
+                                            selectedBookIds = selectedBookIds + book.id
+                                        },
+                                        onDragReady = { id: String ->
+                                            dragReadyRecentId = if (id.isNotEmpty()) id else null
+                                        },
+                                        onDragStart = { id: String ->
+                                            val initIdx = localRecentBooks.indexOfFirst { it.id == id }
+                                            if (initIdx != -1) {
+                                                recentDragState = DragState(
+                                                    itemId = id,
+                                                    initialIndex = initIdx,
+                                                    currentIndex = initIdx,
+                                                    pointerOffset = Offset.Zero
+                                                )
+                                            }
+                                            dragReadyRecentId = null
+                                        },
+                                        onDrag = { dragAmount: Offset ->
+                                            val state = recentDragState ?: return@reorderableItemGesture
+                                            val newPointerOffset = state.pointerOffset + dragAmount
+                                            val itemStepPx = with(density) { (160.dp + Spacing.Medium).toPx() }
+
+                                            val indexDelta = (newPointerOffset.x / itemStepPx).roundToInt()
+                                            val targetIndex = (state.initialIndex + indexDelta).coerceIn(0, localRecentBooks.lastIndex)
+
+                                            if (targetIndex != state.currentIndex) {
+                                                val updated = localRecentBooks.toMutableList()
+                                                val movedItem = updated.removeAt(state.currentIndex)
+                                                updated.add(targetIndex, movedItem)
+                                                localRecentBooks = updated
+
+                                                recentDragState = state.copy(
+                                                    currentIndex = targetIndex,
+                                                    pointerOffset = newPointerOffset
+                                                )
+                                            } else {
+                                                recentDragState = state.copy(pointerOffset = newPointerOffset)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            recentDragState = null
+                                            dragReadyRecentId = null
+                                            viewModel.updateBookOrder(localRecentBooks)
+                                        }
+                                    )
+                                    .graphicsLayer {
+                                        if (isDragging && recentDragState != null) {
+                                            val state = recentDragState!!
+                                            val itemStepPx = (160.dp + Spacing.Medium).toPx()
+                                            val slotShiftX = (state.currentIndex - state.initialIndex) * itemStepPx
+
+                                            translationX = state.pointerOffset.x - slotShiftX
+                                            translationY = state.pointerOffset.y
+                                            shadowElevation = 8.dp.toPx()
+                                            scaleX = 1.04f
+                                            scaleY = 1.04f
+                                        } else if (isDragReady) {
+                                            shadowElevation = 4.dp.toPx()
+                                            scaleX = 1.02f
+                                            scaleY = 1.02f
+                                        }
+                                    },
                                 coverModifier = Modifier.sharedElement(
                                     rememberSharedContentState(key = "recent-cover-${book.id}"),
                                     animatedVisibilityScope = animatedVisibilityScope,
@@ -267,11 +466,109 @@ fun SharedTransitionScope.HomeScreen(
                     )
                 }
 
-                items(topRatedBooks) { book ->
+                items(localTopRatedBooks, key = { it.id }) { book ->
+                    val isSelected = book.id in selectedBookIds
+                    val isDragging = topRatedDragState?.itemId == book.id
+                    val isDragReady = dragReadyTopRatedId == book.id
+
                     TopRatedBookCard(
                         book = book,
-                        onClick = { onBookClick(book.id, "top-rated") },
-                        onBookmarkClick = { /* TODO */ },
+                        isSelected = isSelected,
+                        onClick = null,
+                        onBookmarkClick = { viewModel.toggleBookmark(book.id) },
+                        modifier = Modifier
+                            .then(if (isDragging) Modifier else Modifier.animateItem())
+                            .zIndex(if (isDragging) 100f else if (isDragReady) 10f else 0f)
+                            .reorderableItemGesture(
+                                itemId = book.id,
+                                isSelectedModeActive = selectedBookIds.isNotEmpty(),
+                                onTap = {
+                                    if (selectedBookIds.isNotEmpty()) {
+                                        selectedBookIds = if (isSelected) selectedBookIds - book.id else selectedBookIds + book.id
+                                    } else {
+                                        onBookClick(book.id, "top-rated")
+                                    }
+                                },
+                                onLongPress = {
+                                    selectedBookIds = selectedBookIds + book.id
+                                },
+                                onDragReady = { id: String ->
+                                    dragReadyTopRatedId = if (id.isNotEmpty()) id else null
+                                },
+                                onDragStart = { id: String ->
+                                    val initIdx = localTopRatedBooks.indexOfFirst { it.id == id }
+                                    if (initIdx != -1) {
+                                        topRatedDragState = DragState(
+                                            itemId = id,
+                                            initialIndex = initIdx,
+                                            currentIndex = initIdx,
+                                            pointerOffset = Offset.Zero
+                                        )
+                                    }
+                                    dragReadyTopRatedId = null
+                                },
+                                onDrag = { dragAmount: Offset ->
+                                    val state = topRatedDragState ?: return@reorderableItemGesture
+                                    val newPointerOffset = state.pointerOffset + dragAmount
+                                    val itemStepX = with(density) { 170.dp.toPx() }
+                                    val itemStepY = with(density) { 276.dp.toPx() }
+
+                                    val initialRow = state.initialIndex / 2
+                                    val initialCol = state.initialIndex % 2
+
+                                    val rowDelta = (newPointerOffset.y / itemStepY).roundToInt()
+                                    val colDelta = (newPointerOffset.x / itemStepX).roundToInt()
+
+                                    val targetRow = (initialRow + rowDelta).coerceAtLeast(0)
+                                    val targetCol = (initialCol + colDelta).coerceIn(0, 1)
+
+                                    val targetIndex = (targetRow * 2 + targetCol).coerceIn(0, localTopRatedBooks.lastIndex)
+
+                                    if (targetIndex != state.currentIndex) {
+                                        val updated = localTopRatedBooks.toMutableList()
+                                        val movedItem = updated.removeAt(state.currentIndex)
+                                        updated.add(targetIndex, movedItem)
+                                        localTopRatedBooks = updated
+
+                                        topRatedDragState = state.copy(
+                                            currentIndex = targetIndex,
+                                            pointerOffset = newPointerOffset
+                                        )
+                                    } else {
+                                        topRatedDragState = state.copy(pointerOffset = newPointerOffset)
+                                    }
+                                },
+                                onDragEnd = {
+                                    topRatedDragState = null
+                                    dragReadyTopRatedId = null
+                                    viewModel.updateBookOrder(localTopRatedBooks)
+                                }
+                            )
+                            .graphicsLayer {
+                                if (isDragging && topRatedDragState != null) {
+                                    val state = topRatedDragState!!
+                                    val itemStepX = 170.dp.toPx()
+                                    val itemStepY = 276.dp.toPx()
+
+                                    val currentRow = state.currentIndex / 2
+                                    val currentCol = state.currentIndex % 2
+                                    val initialRow = state.initialIndex / 2
+                                    val initialCol = state.initialIndex % 2
+
+                                    val slotShiftX = (currentCol - initialCol) * itemStepX
+                                    val slotShiftY = (currentRow - initialRow) * itemStepY
+
+                                    translationX = state.pointerOffset.x - slotShiftX
+                                    translationY = state.pointerOffset.y - slotShiftY
+                                    shadowElevation = 8.dp.toPx()
+                                    scaleX = 1.04f
+                                    scaleY = 1.04f
+                                } else if (isDragReady) {
+                                    shadowElevation = 4.dp.toPx()
+                                    scaleX = 1.02f
+                                    scaleY = 1.02f
+                                }
+                            },
                         coverModifier = Modifier.sharedElement(
                             rememberSharedContentState(key = "top-rated-cover-${book.id}"),
                             animatedVisibilityScope = animatedVisibilityScope,

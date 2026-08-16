@@ -33,6 +33,7 @@ import com.example.library.model.Book
 import com.example.library.model.Collection
 import com.example.library.ui.components.LibraryBookItem
 import com.example.library.ui.components.CollectionCoverThumbnail
+import com.example.library.ui.components.getEffectiveCollectionCover
 import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.LibraryTheme
 import com.example.library.ui.theme.Spacing
@@ -196,6 +197,8 @@ private fun SharedTransitionScope.CollectionHeader(
     books: List<Book>,
     animatedVisibilityScope: AnimatedVisibilityScope
 ) {
+    val effectiveCoverUri = getEffectiveCollectionCover(collection, books)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -206,8 +209,8 @@ private fun SharedTransitionScope.CollectionHeader(
     ) {
         // Destination of the Shared Element transition — same key as origin in LibraryScreen
         CollectionCoverThumbnail(
-            coverUri = collection.coverUri,
-            books = books.take(2),
+            coverUri = effectiveCoverUri,
+            books = books.take(3),
             modifier = Modifier.size(width = 180.dp, height = 240.dp),
             frontCoverModifier = Modifier.sharedElement(
                 rememberSharedContentState(key = "collection-cover-${collection.id}"),

@@ -58,6 +58,17 @@ object BookRepository {
 
     fun removeBook(bookId: String) {
         _books.value = _books.value.filter { it.id != bookId }
+        CollectionRepository.removeBooksFromAllCollections(setOf(bookId))
+        persist()
+    }
+
+    /**
+     * Removes all books whose IDs are in [bookIds] in a single atomic operation.
+     * Also strips the deleted IDs from every Collection to prevent orphaned references.
+     */
+    fun removeBooks(bookIds: Set<String>) {
+        _books.value = _books.value.filter { it.id !in bookIds }
+        CollectionRepository.removeBooksFromAllCollections(bookIds)
         persist()
     }
 
@@ -77,6 +88,24 @@ object BookRepository {
                 book.copy(chapters = updatedChapters)
             } else book
         }
+        persist()
+    }
+
+    fun toggleBookmark(bookId: String) {
+        _books.value = _books.value.map { book ->
+            if (book.id == bookId) book.copy(isBookmarked = !book.isBookmarked) else book
+        }
+        persist()
+    }
+
+    /**
+     * Updates the order of books as defined by [newOrder].
+     * Any books not present in [newOrder] will be appended at the end.
+     */
+    fun updateBookOrder(newOrder: List<Book>) {
+        val newOrderIds = newOrder.map { it.id }.toSet()
+        val remaining = _books.value.filter { it.id !in newOrderIds }
+        _books.value = newOrder + remaining
         persist()
     }
 

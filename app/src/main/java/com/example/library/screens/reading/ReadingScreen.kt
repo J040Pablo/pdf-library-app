@@ -206,35 +206,40 @@ fun ReadingScreen(
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
 
-                            if (zoomChange != 1f || panChange != Offset.Zero) {
-                                val currentScale = zoomScaleAnim.value
-                                val newScale = (currentScale * zoomChange).coerceIn(1f, 3.5f)
+                            val currentlyZoomed = zoomScaleAnim.value > 1.05f
+                            val isMultiTouch = event.changes.size > 1
 
-                                if (newScale <= 1.05f && zoomChange < 1f) {
-                                    coroutineScope.launch {
-                                        zoomScaleAnim.snapTo(1f)
-                                        zoomOffsetXAnim.snapTo(0f)
-                                        zoomOffsetYAnim.snapTo(0f)
+                            if (currentlyZoomed || isMultiTouch) {
+                                if (zoomChange != 1f || panChange != Offset.Zero) {
+                                    val currentScale = zoomScaleAnim.value
+                                    val newScale = (currentScale * zoomChange).coerceIn(1f, 3.5f)
+
+                                    if (newScale <= 1.05f && zoomChange < 1f) {
+                                        coroutineScope.launch {
+                                            zoomScaleAnim.snapTo(1f)
+                                            zoomOffsetXAnim.snapTo(0f)
+                                            zoomOffsetYAnim.snapTo(0f)
+                                        }
+                                        viewModel.resetZoom()
+                                    } else {
+                                        val maxOffsetX = (containerWidth * (newScale - 1f)).coerceAtLeast(0f) / 2f
+                                        val maxOffsetY = (containerHeight * (newScale - 1f)).coerceAtLeast(0f) / 2f
+
+                                        val rawOffsetX = zoomOffsetXAnim.value + panChange.x
+                                        val rawOffsetY = zoomOffsetYAnim.value + panChange.y
+
+                                        val newOffsetX = applyPanResistance(rawOffsetX, -maxOffsetX, maxOffsetX)
+                                        val newOffsetY = applyPanResistance(rawOffsetY, -maxOffsetY, maxOffsetY)
+
+                                        coroutineScope.launch {
+                                            zoomScaleAnim.snapTo(newScale)
+                                            zoomOffsetXAnim.snapTo(newOffsetX)
+                                            zoomOffsetYAnim.snapTo(newOffsetY)
+                                        }
+                                        viewModel.setZoom(newScale, Offset(newOffsetX, newOffsetY))
                                     }
-                                    viewModel.resetZoom()
-                                } else {
-                                    val maxOffsetX = (containerWidth * (newScale - 1f)).coerceAtLeast(0f) / 2f
-                                    val maxOffsetY = (containerHeight * (newScale - 1f)).coerceAtLeast(0f) / 2f
-
-                                    val rawOffsetX = zoomOffsetXAnim.value + panChange.x
-                                    val rawOffsetY = zoomOffsetYAnim.value + panChange.y
-
-                                    val newOffsetX = applyPanResistance(rawOffsetX, -maxOffsetX, maxOffsetX)
-                                    val newOffsetY = applyPanResistance(rawOffsetY, -maxOffsetY, maxOffsetY)
-
-                                    coroutineScope.launch {
-                                        zoomScaleAnim.snapTo(newScale)
-                                        zoomOffsetXAnim.snapTo(newOffsetX)
-                                        zoomOffsetYAnim.snapTo(newOffsetY)
-                                    }
-                                    viewModel.setZoom(newScale, Offset(newOffsetX, newOffsetY))
+                                    event.changes.forEach { it.consume() }
                                 }
-                                event.changes.forEach { it.consume() }
                             }
                         } while (event.changes.any { it.pressed })
 

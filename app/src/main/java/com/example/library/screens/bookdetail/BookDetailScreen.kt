@@ -281,20 +281,34 @@ fun SharedTransitionScope.BookDetailScreen(
             )
         }
 
-        // ---- Edit Book button ----
-        IconButton(
-            onClick = { showEditDialog = true },
+        // ---- Top End Action Buttons (Bookmark & Edit) ----
+        Row(
             modifier = Modifier
                 .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
-                .padding(8.dp)
+                .padding(end = 8.dp)
                 .align(Alignment.TopEnd)
-                .alpha(1f - e)
+                .alpha(1f - e),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = "Editar Livro",
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+            IconButton(
+                onClick = { BookRepository.toggleBookmark(liveBook.id) }
+            ) {
+                Icon(
+                    imageVector = if (liveBook.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    contentDescription = if (liveBook.isBookmarked) "Remover dos salvos" else "Salvar livro",
+                    tint = if (liveBook.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            IconButton(
+                onClick = { showEditDialog = true }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Editar Livro",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
 
         // ---- Cover geometry ----
@@ -479,7 +493,7 @@ fun SharedTransitionScope.BookDetailScreen(
                 .navigationBarsPadding()
                 .padding(
                     end = 20.dp,
-                    bottom = 130.dp
+                    bottom = 100.dp
                 )
                 .alpha(1f - e)
         ) {

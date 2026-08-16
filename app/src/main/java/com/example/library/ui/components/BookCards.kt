@@ -36,22 +36,38 @@ import kotlin.math.sin
 @Composable
 fun RecentBookCard(
     book: Book,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
+    onBookmarkClick: () -> Unit = {},
+    onLongClick: () -> Unit = {},
+    isSelected: Boolean = false,
     modifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier,
 ) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.width(160.dp),
-        shape = RoundedCornerShape(Dimens.CornerCardLarge),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        border = androidx.compose.foundation.BorderStroke(
+    val selectedBorder = if (isSelected)
+        androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    else
+        androidx.compose.foundation.BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
+
+    val clickModifier = if (onClick != null) {
+        Modifier.clickable(onClick = onClick, onLongClick = onLongClick)
+    } else Modifier
+
+    Card(
+        modifier = modifier
+            .width(160.dp)
+            .then(clickModifier),
+        shape = RoundedCornerShape(Dimens.CornerCardLarge),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            else
+                MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        border = selectedBorder
     ) {
         Column {
             Box(
@@ -78,6 +94,39 @@ fun RecentBookCard(
                         modifier = Modifier.size(72.dp),
                         tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
                     )
+                }
+
+                // Bookmark icon — hidden while in selection mode to avoid gesture conflict
+                if (!isSelected) {
+                    IconButton(
+                        onClick = onBookmarkClick,
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(
+                            imageVector = if (book.isBookmarked) Icons.Default.Bookmark
+                                          else Icons.Outlined.BookmarkBorder,
+                            contentDescription = "Bookmark",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            modifier = Modifier.size(Dimens.IconMedium)
+                        )
+                    }
+                }
+
+                // Selection overlay — drawn last so it sits on top of the cover
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
             }
 
@@ -117,23 +166,38 @@ fun RecentBookCard(
 @Composable
 fun TopRatedBookCard(
     book: Book,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
     onBookmarkClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    isSelected: Boolean = false,
     modifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier
 ) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Dimens.CornerCardLarge),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        border = androidx.compose.foundation.BorderStroke(
+    val selectedBorder = if (isSelected)
+        androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    else
+        androidx.compose.foundation.BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
+
+    val clickModifier = if (onClick != null) {
+        Modifier.clickable(onClick = onClick, onLongClick = onLongClick)
+    } else Modifier
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(clickModifier),
+        shape = RoundedCornerShape(Dimens.CornerCardLarge),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            else
+                MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        border = selectedBorder
     ) {
         Column {
             Box(
@@ -166,17 +230,37 @@ fun TopRatedBookCard(
                     }
                 }
 
-                IconButton(
-                    onClick = onBookmarkClick,
-                    modifier = Modifier.align(Alignment.TopEnd)
-                ) {
-                    Icon(
-                        imageVector = if (book.isBookmarked) Icons.Default.Bookmark
-                                      else Icons.Outlined.BookmarkBorder,
-                        contentDescription = "Bookmark",
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-                        modifier = Modifier.size(Dimens.IconMedium)
-                    )
+                // Bookmark icon — hidden while in selection mode to avoid gesture conflict
+                if (!isSelected) {
+                    IconButton(
+                        onClick = onBookmarkClick,
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(
+                            imageVector = if (book.isBookmarked) Icons.Default.Bookmark
+                                          else Icons.Outlined.BookmarkBorder,
+                            contentDescription = "Bookmark",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            modifier = Modifier.size(Dimens.IconMedium)
+                        )
+                    }
+                }
+
+                // Selection overlay
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                 }
             }
 

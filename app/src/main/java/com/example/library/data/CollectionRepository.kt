@@ -54,6 +54,29 @@ object CollectionRepository {
     fun getCollectionById(id: String): Collection? =
         _collections.value.firstOrNull { it.id == id }
 
+    /**
+     * Removes all references to [bookIds] from every collection.
+     * Called automatically by [BookRepository.removeBooks] so collections never hold orphaned IDs.
+     */
+    fun removeBooksFromAllCollections(bookIds: Set<String>) {
+        val updated = _collections.value.map { collection ->
+            collection.copy(bookIds = collection.bookIds.filter { it !in bookIds })
+        }
+        _collections.value = updated
+        persist()
+    }
+
+    /**
+     * Updates the order of collections as defined by [newOrder].
+     * Any collections not present in [newOrder] will be appended at the end.
+     */
+    fun updateCollectionOrder(newOrder: List<Collection>) {
+        val newOrderIds = newOrder.map { it.id }.toSet()
+        val remaining = _collections.value.filter { it.id !in newOrderIds }
+        _collections.value = newOrder + remaining
+        persist()
+    }
+
     private fun persist() {
         val s = store ?: return
         val snapshot = _collections.value

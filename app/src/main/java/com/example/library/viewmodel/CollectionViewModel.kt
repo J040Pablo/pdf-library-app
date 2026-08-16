@@ -46,4 +46,9 @@ class CollectionViewModel : ViewModel() {
         )
         CollectionRepository.updateCollection(updated)
     }
+
+    fun updateCollectionOrder(newOrder: List<Collection>) {
+        CollectionRepository.updateCollectionOrder(newOrder)
+    }
 }
+

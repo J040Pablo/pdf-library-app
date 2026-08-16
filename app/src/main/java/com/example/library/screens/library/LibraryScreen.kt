@@ -35,6 +35,14 @@ import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.Spacing
 import com.example.library.screens.home.SunnyShape
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+import com.example.library.screens.home.DragState
+import com.example.library.ui.components.reorderableItemGesture
+import kotlin.math.roundToInt
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun SharedTransitionScope.LibraryScreen(
@@ -48,6 +56,12 @@ fun SharedTransitionScope.LibraryScreen(
 ) {
     val collections by viewModel.collections.collectAsState()
     val allBooks by viewModel.allBooks.collectAsState()
+
+    var localCollections by remember(collections) { mutableStateOf(collections) }
+    var collectionDragState by remember { mutableStateOf<DragState?>(null) }
+    var dragReadyCollectionId by remember { mutableStateOf<String?>(null) }
+
+    val density = LocalDensity.current
     var selectedCollectionIds by remember { mutableStateOf(setOf<String>()) }
 
     val launcher = rememberLauncherForActivityResult(
@@ -77,7 +91,7 @@ fun SharedTransitionScope.LibraryScreen(
                             IconButton(onClick = { 
                                 val id = selectedCollectionIds.first()
                                 selectedCollectionIds = emptySet()
-                                onCreateCollectionClick() // Would route to Edit if we pass ID, but wait, LibraryScreen has onCreateCollectionClick, not Edit.
+                                onCreateCollectionClick() // Route to Edit if needed
                             }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit")
                             }
@@ -111,7 +125,6 @@ fun SharedTransitionScope.LibraryScreen(
                         IconButton(onClick = onSearchClick) {
                             Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(28.dp))
                         }
-                        // "Nova Collection" pill button — same design language as the notification button in Home
                         Box(
                             modifier = Modifier
                                 .padding(end = Spacing.Medium)
@@ -163,27 +176,93 @@ fun SharedTransitionScope.LibraryScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(collections, key = { it.id }) { collection ->
+                        items(localCollections, key = { it.id }) { collection ->
                             val books = viewModel.getBooksForCollection(collection)
+                            val isSelected = collection.id in selectedCollectionIds
+                            val isDragging = collectionDragState?.itemId == collection.id
+                            val isDragReady = dragReadyCollectionId == collection.id
+
                             CollectionCard(
                                 collection = collection,
                                 books = books,
-                                isSelected = collection.id in selectedCollectionIds,
-                                onClick = {
-                                    if (selectedCollectionIds.isNotEmpty()) {
-                                        selectedCollectionIds = if (collection.id in selectedCollectionIds) {
-                                            selectedCollectionIds - collection.id
-                                        } else {
-                                            selectedCollectionIds + collection.id
+                                isSelected = isSelected,
+                                onClick = null,
+                                modifier = Modifier
+                                    .then(if (isDragging) Modifier else Modifier.animateItem())
+                                    .zIndex(if (isDragging) 100f else if (isDragReady) 10f else 0f)
+                                    .reorderableItemGesture(
+                                        itemId = collection.id,
+                                        isSelectedModeActive = selectedCollectionIds.isNotEmpty(),
+                                        onTap = {
+                                            if (selectedCollectionIds.isNotEmpty()) {
+                                                selectedCollectionIds = if (isSelected) selectedCollectionIds - collection.id else selectedCollectionIds + collection.id
+                                            } else {
+                                                onCollectionClick(collection.id)
+                                            }
+                                        },
+                                        onLongPress = {
+                                            selectedCollectionIds = selectedCollectionIds + collection.id
+                                        },
+                                        onDragReady = { id: String ->
+                                            dragReadyCollectionId = if (id.isNotEmpty()) id else null
+                                        },
+                                        onDragStart = { id: String ->
+                                            val initIdx = localCollections.indexOfFirst { it.id == id }
+                                            if (initIdx != -1) {
+                                                collectionDragState = DragState(
+                                                    itemId = id,
+                                                    initialIndex = initIdx,
+                                                    currentIndex = initIdx,
+                                                    pointerOffset = Offset.Zero
+                                                )
+                                            }
+                                            dragReadyCollectionId = null
+                                        },
+                                        onDrag = { dragAmount: Offset ->
+                                            val state = collectionDragState ?: return@reorderableItemGesture
+                                            val newPointerOffset = state.pointerOffset + dragAmount
+                                            val itemStepY = with(density) { (100.dp + 8.dp).toPx() }
+
+                                            val indexDelta = (newPointerOffset.y / itemStepY).roundToInt()
+                                            val targetIndex = (state.initialIndex + indexDelta).coerceIn(0, localCollections.lastIndex)
+
+                                            if (targetIndex != state.currentIndex) {
+                                                val updated = localCollections.toMutableList()
+                                                val movedItem = updated.removeAt(state.currentIndex)
+                                                updated.add(targetIndex, movedItem)
+                                                localCollections = updated
+
+                                                collectionDragState = state.copy(
+                                                    currentIndex = targetIndex,
+                                                    pointerOffset = newPointerOffset
+                                                )
+                                            } else {
+                                                collectionDragState = state.copy(pointerOffset = newPointerOffset)
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            collectionDragState = null
+                                            dragReadyCollectionId = null
+                                            viewModel.updateCollectionOrder(localCollections)
                                         }
-                                    } else {
-                                        onCollectionClick(collection.id)
-                                    }
-                                },
-                                onLongClick = {
-                                    selectedCollectionIds = selectedCollectionIds + collection.id
-                                },
-                                modifier = Modifier.animateItem(),
+                                    )
+                                    .graphicsLayer {
+                                        if (isDragging && collectionDragState != null) {
+                                            val state = collectionDragState!!
+                                            val itemStepY = (100.dp + 8.dp).toPx()
+                                            val slotShiftY = (state.currentIndex - state.initialIndex) * itemStepY
+
+                                            translationX = state.pointerOffset.x
+                                            translationY = state.pointerOffset.y - slotShiftY
+                                            shadowElevation = 8.dp.toPx()
+                                            scaleX = 1.04f
+                                            scaleY = 1.04f
+                                        } else if (isDragReady) {
+                                            shadowElevation = 4.dp.toPx()
+                                            scaleX = 1.02f
+                                            scaleY = 1.02f
+                                        }
+                                    },
                                 coverModifier = Modifier.sharedElement(
                                     rememberSharedContentState(key = "collection-cover-${collection.id}"),
                                     animatedVisibilityScope = animatedVisibilityScope,
