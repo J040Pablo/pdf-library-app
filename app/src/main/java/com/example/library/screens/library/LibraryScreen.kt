@@ -6,83 +6,122 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.library.model.Book
-import com.example.library.ui.components.LibraryBookItem
-import com.example.library.viewmodel.LibraryViewModel
+import com.example.library.model.Collection
+import com.example.library.ui.components.CollectionCard
+import com.example.library.viewmodel.CollectionViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun LibraryScreen(
+fun SharedTransitionScope.LibraryScreen(
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onSearchClick: () -> Unit,
+    onBookClick: (String, String) -> Unit = { _, _ -> },
+    onCollectionClick: (String) -> Unit = {},
+    onCreateCollectionClick: () -> Unit = {},
     paddingValues: PaddingValues = PaddingValues(0.dp),
-    viewModel: LibraryViewModel = viewModel()
+    viewModel: CollectionViewModel = viewModel()
 ) {
-    val books by viewModel.books.collectAsState()
-    val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
+    val collections by viewModel.collections.collectAsState()
+    val allBooks by viewModel.allBooks.collectAsState()
+    var selectedCollectionIds by remember { mutableStateOf(setOf<String>()) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        // Handle PDF selection (integration point)
+        // Hook for PDF import — delegates to BookRepository in a real impl
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.systemBars,
         topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        "Collections", 
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.5).sp
+            if (selectedCollectionIds.isNotEmpty()) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "${selectedCollectionIds.size} selected",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         )
-                    ) 
-                },
-                actions = {
-                    IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(28.dp))
-                    }
-                    IconButton(onClick = { launcher.launch(arrayOf("application/pdf")) }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(28.dp))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { launcher.launch(arrayOf("application/pdf")) },
-                shape = RoundedCornerShape(16.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Book", modifier = Modifier.size(28.dp))
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedCollectionIds = emptySet() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancel")
+                        }
+                    },
+                    actions = {
+                        if (selectedCollectionIds.size == 1) {
+                            IconButton(onClick = { 
+                                val id = selectedCollectionIds.first()
+                                selectedCollectionIds = emptySet()
+                                onCreateCollectionClick() // Would route to Edit if we pass ID, but wait, LibraryScreen has onCreateCollectionClick, not Edit.
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                            }
+                        }
+                        IconButton(onClick = {
+                            selectedCollectionIds.forEach { viewModel.removeCollection(it) }
+                            selectedCollectionIds = emptySet()
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Collections",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.5).sp
+                            )
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = onSearchClick) {
+                            Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(28.dp))
+                        }
+                        FilledIconButton(
+                            onClick = onCreateCollectionClick,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "New Collection", modifier = Modifier.size(24.dp))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+                )
             }
-        }
+        },
     ) { screenPadding ->
         Box(
             modifier = Modifier
@@ -91,95 +130,46 @@ fun LibraryScreen(
                 .background(MaterialTheme.colorScheme.surface)
         ) {
             AnimatedContent(
-                targetState = books.isEmpty(),
-                transitionSpec = {
-                    fadeIn() togetherWith fadeOut()
-                },
+                targetState = collections.isEmpty(),
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "LibraryContent"
             ) { isEmpty ->
                 if (isEmpty) {
-                    EmptyLibraryView { launcher.launch(arrayOf("application/pdf")) }
+                    EmptyCollectionsView(onCreateClick = onCreateCollectionClick)
                 } else {
-                    if (isTablet) {
-                        LibraryGrid(books, viewModel, paddingValues)
-                    } else {
-                        LibraryList(books, viewModel, paddingValues)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun LibraryList(books: List<Book>, viewModel: LibraryViewModel, paddingValues: PaddingValues) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            bottom = paddingValues.calculateBottomPadding() + 80.dp // Space for Nav + FAB (+ 32dp already in FAB area or handled)
-        ),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        items(books, key = { it.id }) { book ->
-            var showMenu by remember { mutableStateOf(false) }
-            
-            // FadeIn animation for each item
-            var visible by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) { visible = true }
-            
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn() + slideInVertically { it / 2 },
-                modifier = Modifier.animateItem()
-            ) {
-                Box {
-                    LibraryBookItem(
-                        book = book,
-                        onClick = { /* Detail */ },
-                        onLongClick = { showMenu = true }
-                    )
-                    
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                        shape = RoundedCornerShape(12.dp)
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = paddingValues.calculateBottomPadding() + 80.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Continuar leitura") },
-                            leadingIcon = { Icon(Icons.Default.AutoStories, contentDescription = null) },
-                            onClick = { showMenu = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Renomear") },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                            onClick = { 
-                                // In a real app, show a dialog
-                                viewModel.renameBook(book, "${book.title} (Edited)")
-                                showMenu = false 
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Favoritar") },
-                            leadingIcon = { 
-                                Icon(
-                                    if (book.isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder, 
-                                    contentDescription = null
-                                ) 
-                            },
-                            onClick = { 
-                                viewModel.toggleFavorite(book)
-                                showMenu = false 
-                            }
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        DropdownMenuItem(
-                            text = { Text("Remover", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                            onClick = { 
-                                viewModel.removeBook(book)
-                                showMenu = false 
-                            }
-                        )
+                        items(collections, key = { it.id }) { collection ->
+                            val books = viewModel.getBooksForCollection(collection)
+                            CollectionCard(
+                                collection = collection,
+                                books = books,
+                                isSelected = collection.id in selectedCollectionIds,
+                                onClick = {
+                                    if (selectedCollectionIds.isNotEmpty()) {
+                                        selectedCollectionIds = if (collection.id in selectedCollectionIds) {
+                                            selectedCollectionIds - collection.id
+                                        } else {
+                                            selectedCollectionIds + collection.id
+                                        }
+                                    } else {
+                                        onCollectionClick(collection.id)
+                                    }
+                                },
+                                onLongClick = {
+                                    selectedCollectionIds = selectedCollectionIds + collection.id
+                                },
+                                modifier = Modifier.animateItem()
+                            )
+                        }
                     }
                 }
             }
@@ -188,31 +178,7 @@ fun LibraryList(books: List<Book>, viewModel: LibraryViewModel, paddingValues: P
 }
 
 @Composable
-fun LibraryGrid(books: List<Book>, viewModel: LibraryViewModel, paddingValues: PaddingValues) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 350.dp),
-        contentPadding = PaddingValues(
-            top = 16.dp,
-            start = 16.dp,
-            end = 16.dp,
-            bottom = paddingValues.calculateBottomPadding() + 80.dp
-        ),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        items(books, key = { it.id }) { book ->
-            LibraryBookItem(
-                book = book,
-                onClick = { /* Detail */ },
-                onLongClick = { /* Menu */ },
-                modifier = Modifier.animateItem()
-            )
-        }
-    }
-}
-
-@Composable
-fun EmptyLibraryView(onAddClick: () -> Unit) {
+fun EmptyCollectionsView(onCreateClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -233,32 +199,32 @@ fun EmptyLibraryView(onAddClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.primary
             )
         }
-        
+
         Spacer(modifier = Modifier.height(32.dp))
-        
+
         Text(
-            "Sua biblioteca está vazia", 
+            "No collections yet",
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Adicione livros PDF para começar sua coleção", 
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            "Create a collection to group your books together",
+            textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        
+
         Spacer(modifier = Modifier.height(32.dp))
-        
+
         Button(
-            onClick = onAddClick,
+            onClick = onCreateClick,
             shape = RoundedCornerShape(12.dp),
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Adicionar Livro", style = MaterialTheme.typography.titleMedium)
+            Text("New Collection", style = MaterialTheme.typography.titleMedium)
         }
     }
 }

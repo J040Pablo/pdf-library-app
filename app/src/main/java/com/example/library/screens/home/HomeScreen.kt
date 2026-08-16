@@ -1,5 +1,8 @@
 package com.example.library.screens.home
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -64,10 +67,12 @@ val SunnyShape = object : Shape {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun HomeScreen(
+fun SharedTransitionScope.HomeScreen(
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onSearchClick: () -> Unit,
+    onBookClick: (String, String) -> Unit = { _, _ -> },
     paddingValues: PaddingValues = PaddingValues(Dimens.CornerSmall),
     viewModel: BookViewModel = viewModel()
 ) {
@@ -189,7 +194,14 @@ fun HomeScreen(
                     contentPadding = PaddingValues(end = Dimens.NotificationButtonSize + Spacing.Medium)
                 ) {
                     items(recentBooks) { book ->
-                        RecentBookCard(book = book, onClick = { /* TODO */ })
+                        RecentBookCard(
+                            book = book, 
+                            onClick = { onBookClick(book.id, "recent") },
+                            coverModifier = Modifier.sharedElement(
+                                rememberSharedContentState(key = "recent-cover-${book.id}"),
+                                animatedVisibilityScope = animatedVisibilityScope
+                            )
+                        )
                     }
                 }
             }
@@ -207,8 +219,12 @@ fun HomeScreen(
             items(topRatedBooks) { book ->
                 TopRatedBookCard(
                     book = book,
-                    onClick = { /* TODO */ },
-                    onBookmarkClick = { /* TODO */ }
+                    onClick = { onBookClick(book.id, "top-rated") },
+                    onBookmarkClick = { /* TODO */ },
+                    coverModifier = Modifier.sharedElement(
+                        rememberSharedContentState(key = "top-rated-cover-${book.id}"),
+                        animatedVisibilityScope = animatedVisibilityScope
+                    )
                 )
             }
         }
@@ -250,19 +266,43 @@ fun HomeScreen(
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true, showSystemUi = true)
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true
+)
 @Composable
 fun HomeScreenPreview() {
     com.example.library.ui.theme.LibraryTheme {
-        HomeScreen(onSearchClick = {})
+        androidx.compose.animation.SharedTransitionLayout {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true
+            ) {
+                HomeScreen(
+                    animatedVisibilityScope = this,
+                    onSearchClick = {}
+                )
+            }
+        }
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true, showSystemUi = true,
-    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@androidx.compose.ui.tooling.preview.Preview(
+    showBackground = true,
+    showSystemUi = true,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES
+)
 @Composable
 fun HomeScreenDarkPreview() {
     com.example.library.ui.theme.LibraryTheme(darkTheme = true) {
-        HomeScreen(onSearchClick = {})
+        androidx.compose.animation.SharedTransitionLayout {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true
+            ) {
+                HomeScreen(
+                    animatedVisibilityScope = this,
+                    onSearchClick = {}
+                )
+            }
+        }
     }
 }

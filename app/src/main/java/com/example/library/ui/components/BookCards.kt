@@ -2,12 +2,15 @@ package com.example.library.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -33,6 +36,7 @@ fun RecentBookCard(
     book: Book,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier,
 ) {
     Card(
         onClick = onClick,
@@ -53,6 +57,7 @@ fun RecentBookCard(
                     .fillMaxWidth()
                     .height(180.dp)
                     .padding(Spacing.Small)
+                    .then(coverModifier)
                     .clip(RoundedCornerShape(Dimens.CornerCoverInner))
                     .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
@@ -103,7 +108,8 @@ fun TopRatedBookCard(
     book: Book,
     onClick: () -> Unit,
     onBookmarkClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier
 ) {
     Card(
         onClick = onClick,
@@ -124,6 +130,7 @@ fun TopRatedBookCard(
                     .fillMaxWidth()
                     .height(210.dp)
                     .padding(Spacing.Small)
+                    .then(coverModifier)
                     .clip(RoundedCornerShape(Dimens.CornerCoverInner))
                     .background(MaterialTheme.colorScheme.secondaryContainer)
             ) {
@@ -238,17 +245,31 @@ fun LibraryBookItem(
     book: Book,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    modifier: Modifier = Modifier
+    isSelected: Boolean = false,
+    modifier: Modifier = Modifier,
+    coverModifier: Modifier = Modifier
 ) {
+    val backgroundColor = if (isSelected)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+    else
+        MaterialTheme.colorScheme.surface
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.Medium, vertical = Spacing.Small)
-            .clickable(onClick = onClick, onLongClick = onLongClick),
+            .clickable(onClick = onClick, onLongClick = onLongClick)
+            .then(
+                if (isSelected) Modifier.border(
+                    2.dp,
+                    MaterialTheme.colorScheme.primary,
+                    RoundedCornerShape(Dimens.CornerCard)
+                ) else Modifier
+            ),
         shape = RoundedCornerShape(Dimens.CornerCard),
         elevation = CardDefaults.cardElevation(defaultElevation = Elevation.Card),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = backgroundColor
         )
     ) {
         Row(
@@ -257,12 +278,32 @@ fun LibraryBookItem(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BookCoverPlaceholder(
-                title = book.title,
+            Box(
                 modifier = Modifier
                     .size(70.dp, 100.dp)
+                    .then(coverModifier)
                     .clip(RoundedCornerShape(Dimens.CornerCard))
-            )
+            ) {
+                BookCoverPlaceholder(
+                    title = book.title,
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.width(Spacing.Medium))
 

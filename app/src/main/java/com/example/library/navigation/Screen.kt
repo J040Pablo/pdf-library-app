@@ -18,6 +18,17 @@ sealed class Screen(
     object Library : Screen("library", "Library", Icons.Default.AutoStories)
     object Profile : Screen("profile", "Profile", Icons.Default.Person)
     object Search : Screen("search", "Search", Icons.Default.Search)
+    object BookDetail : Screen("book_detail/{bookId}?origin={origin}", "Book Detail", Icons.Default.AutoStories) {
+        fun createRoute(bookId: String, origin: String) = "book_detail/$bookId?origin=$origin"
+    }
+    object CollectionDetail : Screen("collection_detail/{collectionId}", "Collection", Icons.Default.AutoStories) {
+        fun createRoute(collectionId: String) = "collection_detail/$collectionId"
+    }
+    object CreateCollection : Screen("create_collection?collectionId={collectionId}", "New Collection", Icons.Default.AutoStories) {
+        fun createRoute(collectionId: String? = null): String {
+            return if (collectionId != null) "create_collection?collectionId=$collectionId" else "create_collection"
+        }
+    }
 }
 
 val bottomNavItems = listOf(

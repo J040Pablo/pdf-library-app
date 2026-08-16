@@ -10,5 +10,6 @@ data class Book(
     val isBookmarked: Boolean = false,
     val pageCount: Int = 0,
     val currentPage: Int = 0,
-    val lastReadDate: String? = null
+    val lastReadDate: String? = null,
+    val chapters: List<Chapter> = emptyList()
 )
