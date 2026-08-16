@@ -1,6 +1,7 @@
 package com.example.library.screens.collectiondetail
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -175,6 +176,7 @@ private fun SharedTransitionScope.CollectionDetailContent(
                         coverModifier = Modifier.sharedElement(
                             rememberSharedContentState(key = "collection-detail-cover-${book.id}"),
                             animatedVisibilityScope = animatedVisibilityScope,
+                            boundsTransform = { _, _ -> tween(durationMillis = 400) },
                             clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCard))
                         )
                     )

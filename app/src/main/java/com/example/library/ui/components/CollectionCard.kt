@@ -21,6 +21,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.graphics.graphicsLayer
 import coil.compose.AsyncImage
 import com.example.library.model.Book
 import com.example.library.model.Collection
@@ -131,7 +132,7 @@ fun CollectionCard(
 
 /**
  * Thumbnail used in [CollectionCard].
- * Shows [coverUri] when available, falling back to [StackedCoverPreview].
+ * Shows real books of the collection stacked in depth BEHIND the Collection Cover (frontmost).
  */
 @Composable
 fun CollectionCoverThumbnail(
@@ -139,62 +140,88 @@ fun CollectionCoverThumbnail(
     books: List<Book>,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier) {
-        if (coverUri != null) {
-            AsyncImage(
-                model = coverUri,
-                contentDescription = "Collection cover",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(Dimens.CornerCoverInner))
-            )
-        } else {
-            StackedCoverPreview(books = books, modifier = Modifier.fillMaxSize())
-        }
-    }
-}
+    val realBooks = books.take(3)
 
-/**
- * Shows up to 2 book covers stacked with a slight offset to convey
- * "folder of books" without a new image system.
- */
-@Composable
-fun StackedCoverPreview(
-    books: List<Book>,
-    modifier: Modifier = Modifier
-) {
-    Box(modifier = modifier) {
-        if (books.size >= 2) {
-            BookCoverPlaceholder(
-                title = books[1].title,
-                modifier = Modifier
-                    .size(width = 56.dp, height = 80.dp)
-                    .offset(x = 14.dp, y = 8.dp)
-                    .clip(RoundedCornerShape(6.dp))
-            )
-        }
-        val frontBook = books.firstOrNull()
-        if (frontBook != null) {
-            BookCoverPlaceholder(
-                title = frontBook.title,
-                modifier = Modifier
-                    .size(width = 56.dp, height = 80.dp)
-                    .clip(RoundedCornerShape(6.dp))
-            )
-        } else {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.BottomStart
+    ) {
+        // Render depth stack BEHIND Collection Cover (rendered in reverse order: Book 3, Book 2, Book 1)
+        realBooks.forEachIndexed { index, _ ->
+            val reverseIndex = realBooks.size - 1 - index
+            val stackedBook = realBooks[reverseIndex]
+
+            val step = reverseIndex + 1
+            val offsetX = (step * 8).dp
+            val offsetY = (-step * 6).dp
+            val scale = 1f - (step * 0.05f)
+
             Surface(
                 modifier = Modifier
-                    .size(width = 56.dp, height = 80.dp)
-                    .clip(RoundedCornerShape(6.dp)),
+                    .fillMaxSize(0.80f)
+                    .align(Alignment.BottomStart)
+                    .offset(x = offsetX, y = offsetY)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .clip(RoundedCornerShape(Dimens.CornerCoverInner)),
+                tonalElevation = (4 - step).dp,
+                shadowElevation = (3 - step).dp.coerceAtLeast(1.dp),
                 color = MaterialTheme.colorScheme.secondaryContainer
             ) {
-                Box(contentAlignment = Alignment.Center) {
+                if (stackedBook.coverUrl != null) {
+                    AsyncImage(
+                        model = stackedBook.coverUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    BookCoverPlaceholder(
+                        title = stackedBook.title,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+
+        // FRONTMOST ELEMENT: Collection Cover (Rendered LAST so it sits on top)
+        Surface(
+            modifier = Modifier
+                .fillMaxSize(0.82f)
+                .align(Alignment.BottomStart)
+                .clip(RoundedCornerShape(Dimens.CornerCoverInner)),
+            shadowElevation = 4.dp,
+            tonalElevation = 2.dp,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            if (coverUri != null) {
+                AsyncImage(
+                    model = coverUri,
+                    contentDescription = "Collection cover",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = Icons.Default.AutoStories,
                         contentDescription = null,
                         modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }

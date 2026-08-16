@@ -26,15 +26,16 @@ fun BottomNavigationBar(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Hide smoothly during fullscreen cover expansion
-    val progress = fullScreenExpansion.coerceIn(0f, 1f)
+    val isReadingScreen = currentRoute?.startsWith("reading") == true
+    // Hide smoothly during fullscreen cover expansion or completely on ReadingScreen
+    val progress = if (isReadingScreen) 1f else fullScreenExpansion.coerceIn(0f, 1f)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(
-                bottom = Spacing.Large,
+                bottom = 6.dp,
                 start = Spacing.XXLarge,
                 end = Spacing.XXLarge
             )
@@ -65,12 +66,15 @@ fun BottomNavigationBar(
                         selected = isSelected,
                         onClick = {
                             if (currentRoute != screen.route) {
+                                val startDestinationId = navController.graph.findStartDestination().id
+                                val isTopLevelRoute = bottomNavItems.any { it.route == currentRoute }
+
                                 navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                                    popUpTo(startDestinationId) {
+                                        saveState = isTopLevelRoute
                                     }
                                     launchSingleTop = true
-                                    restoreState = true
+                                    restoreState = isTopLevelRoute
                                 }
                             }
                         },

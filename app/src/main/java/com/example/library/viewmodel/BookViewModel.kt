@@ -7,6 +7,10 @@ import com.example.library.model.Book
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 
+import android.content.Context
+import com.example.library.data.BookStore
+import kotlinx.coroutines.launch
+
 /** Number of books shown in the "Recents" row on HomeScreen. */
 private const val RECENT_BOOKS_LIMIT = 5
 
@@ -41,6 +45,9 @@ class BookViewModel : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _searchHistory = MutableStateFlow<List<String>>(emptyList())
+    val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
+
     /**
      * Live search results filtered from the full repository list.
      * Combines the query and the repository's book list so results update
@@ -63,5 +70,42 @@ class BookViewModel : ViewModel() {
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+    }
+
+    fun loadSearchHistory(context: Context) {
+        viewModelScope.launch {
+            val store = BookStore(context.applicationContext)
+            _searchHistory.value = store.loadSearchHistory()
+        }
+    }
+
+    fun submitSearchQuery(query: String, context: Context) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+
+        val currentList = _searchHistory.value.toMutableList()
+        currentList.removeAll { it.equals(trimmed, ignoreCase = true) }
+        currentList.add(0, trimmed)
+        val updated = currentList.take(10)
+
+        _searchHistory.value = updated
+        viewModelScope.launch {
+            BookStore(context.applicationContext).saveSearchHistory(updated)
+        }
+    }
+
+    fun removeSearchHistoryItem(item: String, context: Context) {
+        val updated = _searchHistory.value.filterNot { it.equals(item, ignoreCase = true) }
+        _searchHistory.value = updated
+        viewModelScope.launch {
+            BookStore(context.applicationContext).saveSearchHistory(updated)
+        }
+    }
+
+    fun clearSearchHistory(context: Context) {
+        _searchHistory.value = emptyList()
+        viewModelScope.launch {
+            BookStore(context.applicationContext).saveSearchHistory(emptyList())
+        }
     }
 }

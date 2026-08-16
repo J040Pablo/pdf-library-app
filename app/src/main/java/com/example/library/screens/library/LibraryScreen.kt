@@ -87,6 +87,7 @@ fun SharedTransitionScope.LibraryScreen(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
+                    windowInsets = WindowInsets.statusBars,
                     scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
                 )
             } else {
@@ -118,6 +119,7 @@ fun SharedTransitionScope.LibraryScreen(
                         containerColor = MaterialTheme.colorScheme.surface,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
                     ),
+                    windowInsets = WindowInsets.statusBars,
                     scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
                 )
             }

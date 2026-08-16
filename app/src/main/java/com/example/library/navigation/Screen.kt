@@ -29,6 +29,9 @@ sealed class Screen(
             return if (collectionId != null) "create_collection?collectionId=$collectionId" else "create_collection"
         }
     }
+    object Reading : Screen("reading/{bookId}/{chapterId}", "Reading", Icons.Default.AutoStories) {
+        fun createRoute(bookId: String, chapterId: String) = "reading/$bookId/$chapterId"
+    }
 }
 
 val bottomNavItems = listOf(

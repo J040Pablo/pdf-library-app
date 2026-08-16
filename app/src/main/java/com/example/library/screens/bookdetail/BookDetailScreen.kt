@@ -1,10 +1,14 @@
 package com.example.library.screens.bookdetail
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -15,6 +19,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,37 +43,29 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.library.data.BookRepository
 import com.example.library.model.Book
 import com.example.library.model.Chapter
 import com.example.library.ui.components.BookCoverPlaceholder
-import com.example.library.ui.components.RecentBookCard
 import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.Elevation
-import com.example.library.ui.theme.LibraryTheme
 import com.example.library.ui.theme.Spacing
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import androidx.compose.foundation.MutatePriority
 import kotlinx.coroutines.launch
 
-// How far the user needs to pull past the top before the cover is fully
-// expanded into the fullscreen viewer.
 private val FullscreenActivationDistance = 280.dp
 
-// On release: if expansion is past this fraction, commit to opening
-// fullscreen (spring the rest of the way). Below it, spring back to normal.
 private const val FullscreenOpenThreshold = 0.55f
-
-// Once open, dragging back below this fraction commits to closing.
 private const val FullscreenCloseThreshold = 0.55f
 
 private val FullscreenExpandSpring = spring<Float>(
@@ -77,118 +81,144 @@ fun SharedTransitionScope.BookDetailScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onFullScreenExpansionChanged: (Float) -> Unit = {}
+    onFullScreenExpansionChanged: (Float) -> Unit = {},
+    onChapterClick: (Chapter) -> Unit = {}
 ) {
+    val books by BookRepository.books.collectAsState()
+    val liveBook = remember(books, book.id) { books.firstOrNull { it.id == book.id } ?: book }
+
     val listState = rememberLazyListState()
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Header dimensions (used for the existing scroll-to-collapse behavior)
-    val expandedHeaderHeight = 360.dp
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    val expandedHeaderHeight = 390.dp
     val topBarHeight = 64.dp
 
-    // 0f = cover docked in its normal header spot, 1f = cover fills the
-    // entire screen as a dedicated fullscreen viewer. Driven first by
-    // pulling past the top of the chapters list, then (once open) directly
-    // by a drag-to-dismiss gesture on the cover itself.
-    val expansion = remember { Animatable(0f) }
+    var expansionValue by remember { mutableFloatStateOf(0f) }
     var isFullscreenOpen by remember { mutableStateOf(false) }
+    var isPullDownStartedAtTop by remember { mutableStateOf(false) }
 
-    LaunchedEffect(expansion.value) {
-        onFullScreenExpansionChanged(expansion.value)
-    }
+    val animatableExpansion = remember { Animatable(0f) }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            onFullScreenExpansionChanged(0f)
+    fun animateExpansionTo(target: Float) {
+        coroutineScope.launch {
+            animatableExpansion.snapTo(expansionValue)
+            animatableExpansion.animateTo(target, animationSpec = FullscreenExpandSpring) {
+                expansionValue = value
+            }
         }
     }
 
-    val activationDistancePx = with(density) { FullscreenActivationDistance.toPx() }
-    val brakeThresholdPx = with(density) { 48.dp.toPx() }
-    var accumulatedPullPx by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(expansionValue) {
+        onFullScreenExpansionChanged(expansionValue)
+    }
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // If cover is expanding (or open) and user scrolls upward,
-                // collapse expansion before scrolling chapters underneath.
-                if (!isFullscreenOpen && expansion.value > 0f && available.y < 0f) {
-                    val currentProgressPx = brakeThresholdPx + expansion.value * activationDistancePx
-                    val nextProgressPx = (currentProgressPx + available.y).coerceAtLeast(0f)
-                    accumulatedPullPx = nextProgressPx
-                    val nextExpansion = if (nextProgressPx > brakeThresholdPx) {
-                        (nextProgressPx - brakeThresholdPx) / activationDistancePx
-                    } else 0f
-                    coroutineScope.launch {
-                        expansion.snapTo(nextExpansion.coerceIn(0f, 1f))
-                    }
-                    return Offset(0f, available.y)
-                }
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                // Only respond to direct user drag gestures (ignore fling inertia)
-                // and only after reaching the normal scroll boundary (top of list).
-                if (source == NestedScrollSource.UserInput &&
-                    !isFullscreenOpen &&
-                    available.y > 0f &&
-                    listState.firstVisibleItemIndex == 0 &&
-                    listState.firstVisibleItemScrollOffset == 0
-                ) {
-                    accumulatedPullPx += available.y
-                    val nextExpansion = if (accumulatedPullPx > brakeThresholdPx) {
-                        ((accumulatedPullPx - brakeThresholdPx) / activationDistancePx).coerceIn(0f, 1f)
-                    } else 0f
-
-                    coroutineScope.launch {
-                        expansion.snapTo(nextExpansion)
-                    }
-                    return Offset(0f, available.y)
-                }
-                return Offset.Zero
-            }
-
-            override suspend fun onPreFling(available: Velocity): Velocity {
-                if (!isFullscreenOpen && (expansion.value > 0f || accumulatedPullPx > 0f)) {
-                    if (expansion.value >= FullscreenOpenThreshold) {
-                        expansion.animateTo(1f, FullscreenExpandSpring)
-                        isFullscreenOpen = true
-                    } else {
-                        expansion.animateTo(0f, FullscreenExpandSpring)
-                        accumulatedPullPx = 0f
+                // Only collapse expanding cover during manual user drag upward
+                if (source == NestedScrollSource.UserInput && expansionValue > 0f && available.y < 0f) {
+                    val deltaPx = available.y
+                    val distancePx = with(density) { FullscreenActivationDistance.toPx() }
+                    val newVal = (expansionValue + deltaPx / distancePx).coerceIn(0f, 1f)
+                    val consumedY = (newVal - expansionValue) * distancePx
+                    expansionValue = newVal
+                    if (newVal < FullscreenCloseThreshold) {
                         isFullscreenOpen = false
                     }
+                    if (newVal == 0f) {
+                        isPullDownStartedAtTop = false
+                    }
+                    return Offset(0f, consumedY)
                 }
-                return Velocity.Zero
+
+                // Rapid drag upward when closed must never activate expansion
+                if (available.y < 0f && expansionValue == 0f) {
+                    isPullDownStartedAtTop = false
+                }
+
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                // Ignore flings/inertia for cover expansion
+                if (source != NestedScrollSource.UserInput) {
+                    isPullDownStartedAtTop = false
+                    return Offset.Zero
+                }
+
+                // Reset pull down flag if list was scrolled upward during this gesture
+                if (consumed.y > 0f) {
+                    isPullDownStartedAtTop = false
+                }
+
+                val isAtAbsoluteTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+
+                // Cover expansion ONLY starts when user initiates a pull DOWNWARD at top of list via UserInput
+                if (isAtAbsoluteTop && available.y > 0f) {
+                    if (consumed.y == 0f || isPullDownStartedAtTop || expansionValue > 0f) {
+                        isPullDownStartedAtTop = true
+                        val deltaPx = available.y
+                        val distancePx = with(density) { FullscreenActivationDistance.toPx() }
+                        val newVal = (expansionValue + deltaPx / distancePx).coerceIn(0f, 1f)
+                        val consumedY = (newVal - expansionValue) * distancePx
+                        expansionValue = newVal
+                        if (newVal >= FullscreenOpenThreshold) {
+                            isFullscreenOpen = true
+                        }
+                        return Offset(0f, consumedY)
+                    }
+                }
+
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                isPullDownStartedAtTop = false
+                val current = expansionValue
+                if (current > 0f && current < 1f) {
+                    val target = if (current >= FullscreenOpenThreshold) 1f else 0f
+                    isFullscreenOpen = target == 1f
+                    animateExpansionTo(target)
+                }
+                return super.onPostFling(consumed, available)
             }
         }
     }
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .nestedScroll(nestedScrollConnection)
     ) {
-        val screenWidthPx = constraints.maxWidth.toFloat()
-        val screenHeightPx = constraints.maxHeight.toFloat()
+        val screenWidthPx = with(density) { LocalContext.current.resources.displayMetrics.widthPixels.toFloat() }
+        val screenHeightPx = with(density) { LocalContext.current.resources.displayMetrics.heightPixels.toFloat() }
 
         val statusBarPaddingPx = with(density) { WindowInsets.statusBars.asPaddingValues().calculateTopPadding().toPx() }
         val topBarHeightPx = with(density) { topBarHeight.toPx() }
         val headerDropPx = with(density) { (expandedHeaderHeight - topBarHeight).toPx() } - statusBarPaddingPx
 
-        // collapseProgress: 0f = fully expanded header, 1f = fully collapsed
-        // into the small top bar. Driven by normal scrolling through chapters
-        // — unrelated to the fullscreen expansion below, and mutually
-        // exclusive with it (this is only ever >0 once firstVisibleItemScrollOffset
-        // has moved past 0, which the NestedScrollConnection above only
-        // allows once `expansion` has fully returned to 0).
         val collapseProgress = if (listState.firstVisibleItemIndex > 0) 1f
         else min(1f, max(0f, listState.firstVisibleItemScrollOffset / max(1f, headerDropPx)))
 
-        val e = expansion.value.coerceIn(0f, 1f)
+        val e = expansionValue.coerceIn(0f, 1f)
+
+        val currentReadingChapter = remember(liveBook) {
+            if (liveBook.progress > 0f || liveBook.currentPage > 0) {
+                liveBook.chapters.firstOrNull { ch ->
+                    val start = ch.startPage
+                    val end = ch.endPage ?: (liveBook.pageCount - 1).coerceAtLeast(start)
+                    liveBook.currentPage in start..end
+                }
+            } else null
+        }
 
         // ---- Chapters list ----
         LazyColumn(
@@ -196,17 +226,36 @@ fun SharedTransitionScope.BookDetailScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             item {
-                Spacer(modifier = Modifier.height(expandedHeaderHeight + 64.dp))
+                Spacer(modifier = Modifier.height(expandedHeaderHeight + 24.dp))
             }
-            items(book.chapters) { chapter ->
-                ChapterItem(chapter = chapter)
+
+            items(liveBook.chapters) { chapter ->
+                val isCurrentReadingChapter = currentReadingChapter?.id == chapter.id
+                val savedPageInChapter = if (isCurrentReadingChapter) {
+                    (liveBook.currentPage - chapter.startPage).coerceAtLeast(0)
+                } else 0
+
+                ChapterItem(
+                    chapter = chapter,
+                    isCurrentReadingChapter = isCurrentReadingChapter,
+                    savedPageInChapter = savedPageInChapter,
+                    onClick = { onChapterClick(chapter) },
+                    onToggleRead = {
+                        BookRepository.toggleChapterReadState(liveBook.id, chapter.id)
+                    },
+                    onToggleBookmark = {
+                        BookRepository.toggleChapterBookmark(liveBook.id, chapter.id)
+                    }
+                )
             }
+
             item {
-                Spacer(modifier = Modifier.height(32.dp))
+                // Bottom spacing so scrollable content is fully visible above floating action button & navbar
+                Spacer(modifier = Modifier.height(140.dp))
             }
         }
 
-        // ---- Sticky top bar background (fades in on collapse, fades out on expansion) ----
+        // ---- Sticky top bar background ----
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -227,7 +276,23 @@ fun SharedTransitionScope.BookDetailScreen(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = "Voltar",
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        // ---- Edit Book button ----
+        IconButton(
+            onClick = { showEditDialog = true },
+            modifier = Modifier
+                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
+                .padding(8.dp)
+                .align(Alignment.TopEnd)
+                .alpha(1f - e)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Edit,
+                contentDescription = "Editar Livro",
                 tint = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -236,125 +301,92 @@ fun SharedTransitionScope.BookDetailScreen(
         val backBtnWidthPx = with(density) { 56.dp.toPx() }
         val coverWidthMax = 150.dp
         val coverHeightMax = 220.dp
-        val coverWidthMin = 44.dp
-        val coverHeightMin = 64.dp
+        val coverWidthMin = 36.dp
+        val coverHeightMin = 52.dp
 
-        // Docked bounds: same header-collapse math as before (scroll-driven).
-        val dockedScale = 1f - (1f - (coverWidthMin / coverWidthMax)) * collapseProgress
-        val dockedWidthPx = with(density) { coverWidthMax.toPx() } * dockedScale
-        val dockedHeightPx = with(density) { coverHeightMax.toPx() } * dockedScale
+        val coverWidthPx = with(density) { (coverWidthMax - (coverWidthMax - coverWidthMin) * collapseProgress).toPx() }
+        val coverHeightPx = with(density) { (coverHeightMax - (coverHeightMax - coverHeightMin) * collapseProgress).toPx() }
 
-        val originCoverX = (screenWidthPx - with(density) { coverWidthMax.toPx() }) / 2f
-        val originCoverY = statusBarPaddingPx + with(density) { 60.dp.toPx() }
-        val originCoverCenterX = originCoverX + with(density) { coverWidthMax.toPx() } / 2f
-        val originCoverCenterY = originCoverY + with(density) { coverHeightMax.toPx() } / 2f
+        val coverTopMargin = statusBarPaddingPx + with(density) { 16.dp.toPx() }
 
-        val targetCoverCenterX = backBtnWidthPx + with(density) { 8.dp.toPx() } + with(density) { coverWidthMin.toPx() } / 2f
-        val targetCoverCenterY = statusBarPaddingPx + topBarHeightPx / 2f
+        val coverLeftExpanded = (screenWidthPx - coverWidthPx) / 2f
+        val coverTopExpanded = coverTopMargin
 
-        val dockedCenterX = originCoverCenterX + (targetCoverCenterX - originCoverCenterX) * collapseProgress
-        val dockedCenterY = originCoverCenterY + (targetCoverCenterY - originCoverCenterY) * collapseProgress
+        val coverLeftCollapsed = backBtnWidthPx + with(density) { 8.dp.toPx() }
+        val coverTopCollapsed = statusBarPaddingPx + (topBarHeightPx - coverHeightPx) / 2f
 
-        val dockedLeft = dockedCenterX - dockedWidthPx / 2f
-        val dockedTop = dockedCenterY - dockedHeightPx / 2f
+        val currentCoverLeft = coverLeftExpanded + (coverLeftCollapsed - coverLeftExpanded) * collapseProgress
+        val currentCoverTop = coverTopExpanded + (coverTopCollapsed - coverTopExpanded) * collapseProgress
 
-        // Fullscreen bounds: the entire screen.
-        // NOTE: we interpolate actual offset + size here (real layout bounds),
-        // NOT a graphicsLayer scale. That's the deliberate choice that avoids
-        // the "zoom"/stretched look — the cover genuinely resizes, the same
-        // way a Google Photos-style expand transition does, instead of being
-        // visually stretched past its native bounds.
-        val coverLeftPx = dockedLeft + (0f - dockedLeft) * e
-        val coverTopPx = dockedTop + (0f - dockedTop) * e
-        val coverWidthPx = dockedWidthPx + (screenWidthPx - dockedWidthPx) * e
-        val coverHeightPx = dockedHeightPx + (screenHeightPx - dockedHeightPx) * e
+        val fsLeft = currentCoverLeft * (1f - e)
+        val fsTop = currentCoverTop * (1f - e)
+        val fsWidth = coverWidthPx + (screenWidthPx - coverWidthPx) * e
+        val fsHeight = coverHeightPx + (screenHeightPx - coverHeightPx) * e
+
         val coverCornerRadius = Dimens.CornerCoverInner * (1f - e)
 
-        // ---- Scrim, only present while expanding/open ----
-        if (e > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(e)
-                    .background(Color.Black)
-            )
-        }
-
-        // ---- Cover: single instance, real bounds animation ----
         Box(
             modifier = Modifier
-                .offset { IntOffset(coverLeftPx.toInt(), coverTopPx.toInt()) }
+                .offset { IntOffset(fsLeft.toInt(), fsTop.toInt()) }
                 .size(
-                    width = with(density) { coverWidthPx.toDp() },
-                    height = with(density) { coverHeightPx.toDp() }
+                    width = with(density) { fsWidth.toDp() },
+                    height = with(density) { fsHeight.toDp() }
                 )
                 .clip(RoundedCornerShape(coverCornerRadius))
-                .then(
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .pointerInput(isFullscreenOpen) {
                     if (isFullscreenOpen) {
-                        Modifier.pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onDragEnd = {
-                                    coroutineScope.launch {
-                                        if (expansion.value >= FullscreenCloseThreshold) {
-                                            // Didn't drag far enough — spring back open.
-                                            expansion.animateTo(1f, FullscreenExpandSpring)
-                                        } else {
-                                            expansion.animateTo(0f, FullscreenExpandSpring)
-                                            isFullscreenOpen = false
-                                            accumulatedPullPx = 0f
-                                            // Cancel any in-flight scroll/fling on the chapter list
-                                            // so closing fullscreen never moves or flings the list.
-                                            listState.scroll(MutatePriority.PreventUserInput) {}
-                                        }
-                                    }
-                                },
-                                onDragCancel = {
-                                    coroutineScope.launch { expansion.animateTo(1f, FullscreenExpandSpring) }
-                                }
-                            ) { change, dragAmount ->
-                                change.consume()
-                                // Dragging in EITHER direction shrinks it back toward
-                                // its docked position — a common pattern for
-                                // dismissing fullscreen image viewers.
-                                coroutineScope.launch {
-                                    val next = (expansion.value - abs(dragAmount) / activationDistancePx)
-                                        .coerceIn(0f, 1f)
-                                    expansion.snapTo(next)
-                                }
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                val current = expansionValue
+                                val target = if (current < FullscreenCloseThreshold) 0f else 1f
+                                isFullscreenOpen = target == 1f
+                                animateExpansionTo(target)
+                            },
+                            onVerticalDrag = { _, dragAmount ->
+                                val distancePx = with(density) { FullscreenActivationDistance.toPx() }
+                                val newVal = (expansionValue + dragAmount / distancePx).coerceIn(0f, 1f)
+                                expansionValue = newVal
                             }
-                        }
-                    } else {
-                        Modifier
+                        )
                     }
-                )
-                .sharedElement(
-                    rememberSharedContentState(key = "${origin}-cover-${book.id}"),
+                }
+        ) {
+            val sharedKey = "${origin}-cover-${liveBook.id}"
+            val sharedModifier = if (animatedVisibilityScope != null) {
+                Modifier.sharedElement(
+                    rememberSharedContentState(key = sharedKey),
                     animatedVisibilityScope = animatedVisibilityScope,
                     boundsTransform = { _, _ -> tween(durationMillis = 400) },
                     clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCoverInner))
                 )
-        ) {
-            if (book.coverUrl != null) {
+            } else Modifier
+
+            if (liveBook.coverUrl != null) {
                 AsyncImage(
-                    model = book.coverUrl,
-                    contentDescription = book.title,
+                    model = liveBook.coverUrl,
+                    contentDescription = liveBook.title,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(sharedModifier)
                 )
             } else {
                 BookCoverPlaceholder(
-                    title = book.title,
-                    modifier = Modifier.fillMaxSize()
+                    title = liveBook.title,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(sharedModifier)
                 )
             }
         }
 
         // ---- Title ----
-        val titleTopMargin = originCoverY + with(density) { coverHeightMax.toPx() } + with(density) { 32.dp.toPx() }
-        var titleHeightPx by remember { mutableFloatStateOf(0f) }
+        val titleTopMargin = statusBarPaddingPx + with(density) { (16.dp + coverHeightMax + 16.dp).toPx() }
+        var titleHeightPx by remember { mutableStateOf(0f) }
 
         Text(
-            text = book.title,
+            text = liveBook.title,
             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = if (collapseProgress > 0.8f) 1 else 2,
@@ -362,7 +394,7 @@ fun SharedTransitionScope.BookDetailScreen(
             modifier = Modifier
                 .layout { measurable, constraints ->
                     val collapsedLeft = backBtnWidthPx + with(density) { 8.dp.toPx() } + with(density) { coverWidthMin.toPx() } + with(density) { 16.dp.toPx() }
-                    val rightPadding = with(density) { 16.dp.toPx() }
+                    val rightPadding = with(density) { 56.dp.toPx() }
 
                     val expandedMaxWidth = (screenWidthPx - with(density) { 32.dp.toPx() }).toInt()
                     val collapsedMaxWidth = ((screenWidthPx - collapsedLeft - rightPadding) / 0.85f).toInt()
@@ -401,7 +433,7 @@ fun SharedTransitionScope.BookDetailScreen(
 
         // ---- Author ----
         Text(
-            text = book.author,
+            text = liveBook.author,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
@@ -422,17 +454,111 @@ fun SharedTransitionScope.BookDetailScreen(
                     alpha = (1f - (collapseProgress * 2f)).coerceIn(0f, 1f) * (1f - e)
                 }
         )
+
+       // ---- COMPACT FLOATING READING ACTION PILL BUTTON ----
+        val hasStartedReading = liveBook.progress > 0f || liveBook.currentPage > 0
+        val buttonText = if (hasStartedReading) "Continuar" else "Começar"
+
+        val targetChapter = remember(liveBook) {
+            if (hasStartedReading) {
+                liveBook.chapters.firstOrNull { ch ->
+                    val start = ch.startPage
+                    val end = ch.endPage ?: (liveBook.pageCount - 1).coerceAtLeast(start)
+                    liveBook.currentPage in start..end
+                } ?: liveBook.chapters.firstOrNull()
+                    ?: Chapter("1", "Capítulo 1", "")
+            } else {
+                liveBook.chapters.firstOrNull()
+                    ?: Chapter("1", "Capítulo 1", "")
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(
+                    end = 20.dp,
+                    bottom = 130.dp
+                )
+                .alpha(1f - e)
+        ) {
+            Surface(
+                onClick = { onChapterClick(targetChapter) },
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .height(44.dp)
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = if (hasStartedReading)
+                            Icons.Default.PlayArrow
+                        else
+                            Icons.Default.AutoStories,
+                        contentDescription = buttonText,
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = buttonText,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            }
+        }
+
+        // ---- EDIT BOOK DIALOG ----
+        if (showEditDialog) {
+            EditBookDialog(
+                book = liveBook,
+                onDismiss = { showEditDialog = false },
+                onSave = { updatedBook ->
+                    BookRepository.updateBook(updatedBook)
+                    showEditDialog = false
+                }
+            )
+        }
     }
 }
 
 @Composable
-fun ChapterItem(chapter: Chapter) {
+fun ChapterItem(
+    chapter: Chapter,
+    isCurrentReadingChapter: Boolean = false,
+    savedPageInChapter: Int = 0,
+    onClick: () -> Unit = {},
+    onToggleRead: () -> Unit = {},
+    onToggleBookmark: () -> Unit = {}
+) {
+    val cardColor = if (isCurrentReadingChapter) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+    val borderStroke = if (isCurrentReadingChapter) {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+    } else null
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.Medium, vertical = Spacing.Small)
-            .clickable { },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        border = borderStroke,
         elevation = CardDefaults.cardElevation(defaultElevation = Elevation.Card)
     ) {
         Row(
@@ -441,12 +567,40 @@ fun ChapterItem(chapter: Chapter) {
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Chapter ${chapter.id}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
+            IconButton(
+                onClick = onToggleRead,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = if (chapter.isRead) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = if (chapter.isRead) "Marcar como não lido" else "Marcar como lido",
+                    tint = if (chapter.isRead) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Capítulo ${chapter.id}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (isCurrentReadingChapter) {
+                        Text(
+                            text = "▶ Continuar da pág. ${savedPageInChapter + 1}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = chapter.title,
@@ -454,96 +608,148 @@ fun ChapterItem(chapter: Chapter) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
             Text(
                 text = chapter.durationOrPages,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            IconButton(
+                onClick = onToggleBookmark,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = if (chapter.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    contentDescription = if (chapter.isBookmarked) "Remover dos salvos" else "Salvar capítulo",
+                    tint = if (chapter.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
         }
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
-@Preview(showBackground = true, device = "id:pixel_7_pro")
 @Composable
-fun BookDetailPreviewHost() {
-    LibraryTheme {
-        SharedTransitionLayout {
+fun EditBookDialog(
+    book: Book,
+    onDismiss: () -> Unit,
+    onSave: (Book) -> Unit
+) {
+    var title by remember { mutableStateOf(book.title) }
+    var author by remember { mutableStateOf(book.author) }
+    var coverUrl by remember { mutableStateOf(book.coverUrl) }
+    var titleError by remember { mutableStateOf(false) }
 
-            val mockChaptersShort = listOf(
-                Chapter("1", "Introduction", "10 pages", startPage = 0, endPage = 9),
-                Chapter("2", "Getting Started", "15 pages", startPage = 10, endPage = 24),
-                Chapter("3", "Next Steps", "20 pages", startPage = 25, endPage = 44)
-            )
-
-            val mockChapters = listOf(
-                Chapter("1", "The Architecture of UI", "24 pages", startPage = 0, endPage = 23),
-                Chapter("2", "State Management Patterns", "18 pages", startPage = 24, endPage = 41),
-                Chapter("3", "Gestures and Meaningful Motion", "30 pages", startPage = 42, endPage = 71),
-                Chapter("4", "Navigating the Unknown", "22 pages", startPage = 72, endPage = 93),
-                Chapter("5", "Shared Elements in Practice", "35 pages", startPage = 94, endPage = 128)
-            )
-
-            val mockChaptersLong = (1..30).map { i ->
-                Chapter(i.toString(), "Chapter $i that explains something deep", "${i * 5} pages",
-                    startPage = (i - 1) * 5, endPage = i * 5 - 1)
-            }
-
-            val mockBooks = listOf(
-                Book(id = "book1", title = "1984", author = "George Orwell", chapters = mockChaptersShort, progress = 0.85f),
-                Book(id = "book2", title = "Clean Code", author = "Robert C. Martin", chapters = mockChapters, progress = 0.45f),
-                Book(
-                    id = "book3",
-                    title = "The Extraordinary Adventures of a Software Engineer in the Land of Artificial Intelligence",
-                    author = "Alan Turing",
-                    chapters = mockChaptersLong,
-                    progress = 0.10f
-                )
-            )
-
-            var selectedBook by remember { mutableStateOf<Book?>(null) }
-
-            AnimatedVisibility(
-                visible = selectedBook == null,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(mockBooks) { book ->
-                        Box(modifier = Modifier.clickable { selectedBook = book }) {
-                            val originStr = "recent"
-                            RecentBookCard(
-                                book = book,
-                                onClick = { selectedBook = book },
-                                coverModifier = Modifier.sharedElement(
-                                    rememberSharedContentState(key = "${originStr}-cover-${book.id}"),
-                                    animatedVisibilityScope = this@AnimatedVisibility,
-                                    clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCoverInner))
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            AnimatedVisibility(
-                visible = selectedBook != null,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { 200 }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { 200 })
-            ) {
-                selectedBook?.let { book ->
-                    BookDetailScreen(
-                        book = book,
-                        origin = "recent",
-                        animatedVisibilityScope = this@AnimatedVisibility,
-                        onBackClick = { selectedBook = null }
-                    )
-                }
-            }
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            coverUrl = it.toString()
         }
     }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Editar Livro",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.Small),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 100.dp, height = 140.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (coverUrl != null) {
+                        AsyncImage(
+                            model = coverUrl,
+                            contentDescription = "Capa",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        BookCoverPlaceholder(title = title.ifEmpty { "Capa" })
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.Small))
+
+                OutlinedButton(
+                    onClick = { imagePickerLauncher.launch("image/*") }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Alterar Capa")
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.Medium))
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = {
+                        title = it
+                        titleError = it.isBlank()
+                    },
+                    label = { Text("Título do Livro") },
+                    isError = titleError,
+                    supportingText = {
+                        if (titleError) {
+                            Text("O título não pode ser vazio", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.Small))
+
+                OutlinedTextField(
+                    value = author,
+                    onValueChange = { author = it },
+                    label = { Text("Nome do Autor") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isBlank()) {
+                        titleError = true
+                        return@Button
+                    }
+                    val updated = book.copy(
+                        title = title.trim(),
+                        author = author.trim(),
+                        coverUrl = coverUrl
+                    )
+                    onSave(updated)
+                }
+            ) {
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }

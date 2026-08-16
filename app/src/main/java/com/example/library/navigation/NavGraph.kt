@@ -22,6 +22,7 @@ import com.example.library.screens.home.HomeScreen
 import com.example.library.screens.profile.ProfileScreen
 import com.example.library.screens.search.SearchScreen
 import com.example.library.screens.library.LibraryScreen
+import com.example.library.screens.reading.ReadingScreen
 import com.example.library.screens.upload.UploadScreen
 import com.example.library.viewmodel.ThemeViewModel
 import com.example.library.model.Book
@@ -88,9 +89,13 @@ fun NavGraph(
             }
             composable(Screen.Search.route) {
                 SearchScreen(
+                    animatedVisibilityScope = this@composable,
                     paddingValues = paddingValues,
                     onBackClick = {
                         navController.popBackStack()
+                    },
+                    onBookClick = { bookId, origin ->
+                        navController.navigate(Screen.BookDetail.createRoute(bookId, origin))
                     }
                 )
             }
@@ -154,7 +159,22 @@ fun NavGraph(
                     origin = origin,
                     animatedVisibilityScope = this@composable,
                     onBackClick = { navController.popBackStack() },
-                    onFullScreenExpansionChanged = onFullScreenExpansionChanged
+                    onFullScreenExpansionChanged = onFullScreenExpansionChanged,
+                    onChapterClick = { chapter ->
+                        navController.navigate(Screen.Reading.createRoute(book.id, chapter.id))
+                    }
+                )
+            }
+            composable(
+                route = Screen.Reading.route
+            ) { backStackEntry ->
+                val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
+                val chapterId = backStackEntry.arguments?.getString("chapterId") ?: ""
+
+                ReadingScreen(
+                    bookId = bookId,
+                    chapterId = chapterId,
+                    onBackClick = { navController.popBackStack() }
                 )
             }
             composable(

@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
 
+import com.example.library.model.Collection as LibraryCollection
+
 // Separate DataStore file from "settings" used by ThemeDataStore.
 private val Context.bookDataStore: DataStore<Preferences> by preferencesDataStore(name = "books")
 
@@ -19,6 +21,8 @@ class BookStore(private val context: Context) {
 
     companion object {
         private val BOOKS_KEY = stringPreferencesKey("book_list_json")
+        private val COLLECTIONS_KEY = stringPreferencesKey("collection_list_json")
+        private val SEARCH_HISTORY_KEY = stringPreferencesKey("search_history_json")
     }
 
     /** Persists [books] as a JSON array string. */
@@ -42,7 +46,45 @@ class BookStore(private val context: Context) {
             val array = JSONArray(json)
             List(array.length()) { i -> Book.fromJson(array.getJSONObject(i)) }
         } catch (_: Exception) {
-            null // Corrupt data → fall back to seed list
+            null
+        }
+    }
+
+    suspend fun saveCollections(collections: List<LibraryCollection>) {
+        val json = JSONArray().apply {
+            collections.forEach { put(it.toJson()) }
+        }.toString()
+        context.bookDataStore.edit { prefs ->
+            prefs[COLLECTIONS_KEY] = json
+        }
+    }
+
+    suspend fun loadCollections(): List<LibraryCollection>? {
+        val prefs = context.bookDataStore.data.first()
+        val json = prefs[COLLECTIONS_KEY] ?: return null
+        return try {
+            val array = JSONArray(json)
+            List(array.length()) { i -> collectionFromJson(array.getJSONObject(i)) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun saveSearchHistory(history: List<String>) {
+        val json = JSONArray(history).toString()
+        context.bookDataStore.edit { prefs ->
+            prefs[SEARCH_HISTORY_KEY] = json
+        }
+    }
+
+    suspend fun loadSearchHistory(): List<String> {
+        val prefs = context.bookDataStore.data.first()
+        val json = prefs[SEARCH_HISTORY_KEY] ?: return emptyList()
+        return try {
+            val array = JSONArray(json)
+            List(array.length()) { i -> array.getString(i) }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 }
@@ -69,6 +111,16 @@ fun Chapter.toJson(): JSONObject = JSONObject().apply {
     put("durationOrPages", durationOrPages)
     put("startPage", startPage)
     put("endPage", endPage ?: JSONObject.NULL)
+    put("isRead", isRead)
+    put("isBookmarked", isBookmarked)
+}
+
+fun LibraryCollection.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("name", name)
+    put("description", description)
+    put("coverUri", coverUri ?: JSONObject.NULL)
+    put("bookIds", JSONArray(bookIds))
 }
 
 fun Book.Companion.fromJson(json: JSONObject): Book = Book(
@@ -92,5 +144,17 @@ fun Chapter.Companion.fromJson(json: JSONObject): Chapter = Chapter(
     title = json.getString("title"),
     durationOrPages = json.getString("durationOrPages"),
     startPage = json.optInt("startPage", 0),
-    endPage = json.optInt("endPage", -1).takeIf { it >= 0 }
+    endPage = json.optInt("endPage", -1).takeIf { it >= 0 },
+    isRead = json.optBoolean("isRead", false),
+    isBookmarked = json.optBoolean("isBookmarked", false)
+)
+
+fun collectionFromJson(json: JSONObject): LibraryCollection = LibraryCollection(
+    id = json.getString("id"),
+    name = json.getString("name"),
+    description = json.optString("description", ""),
+    coverUri = json.optString("coverUri").takeIf { it.isNotEmpty() && it != "null" },
+    bookIds = json.optJSONArray("bookIds")?.let { arr ->
+        List(arr.length()) { i -> arr.getString(i) }
+    } ?: emptyList()
 )

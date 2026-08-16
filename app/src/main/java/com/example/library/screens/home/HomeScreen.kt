@@ -3,6 +3,7 @@ package com.example.library.screens.home
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -162,72 +164,122 @@ fun SharedTransitionScope.HomeScreen(
             )
         }
     ) { screenPadding ->
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = screenPadding.calculateTopPadding()),
-            contentPadding = PaddingValues(
-                start = Spacing.Medium,
-                end = Spacing.Medium,
-                // Scaffold bottom padding (nav bar insets) + extra breathing room
-                bottom = paddingValues.calculateBottomPadding() + Spacing.Large + 24.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.Medium),
-            verticalArrangement = Arrangement.spacedBy(Spacing.Medium)
-        ) {
-            // Extra top breathing room before "Recents" — matches Figma vertical rhythm
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = "Recents",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(top = Spacing.Large + 14.dp, bottom = Spacing.Small),
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.Medium),
-                    contentPadding = PaddingValues(end = Dimens.NotificationButtonSize + Spacing.Medium)
+        if (recentBooks.isEmpty() && topRatedBooks.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = screenPadding.calculateTopPadding())
+                    .padding(horizontal = Spacing.XXLarge),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    items(recentBooks) { book ->
-                        RecentBookCard(
-                            book = book, 
-                            onClick = { onBookClick(book.id, "recent") },
-                            coverModifier = Modifier.sharedElement(
-                                rememberSharedContentState(key = "recent-cover-${book.id}"),
-                                animatedVisibilityScope = animatedVisibilityScope,
-                                clipInOverlayDuringTransition = OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(Dimens.CornerCoverInner))
-                            )
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(52.dp),
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(Spacing.XXLarge))
+
+                    Text(
+                        text = "Você ainda não possui livros",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(Spacing.Medium))
+
+                    Text(
+                        text = "Importe arquivos PDF usando a aba Upload para começar a sua leitura.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
-
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = "Top Rated",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(top = Spacing.Large, bottom = Spacing.Small),
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            items(topRatedBooks) { book ->
-                TopRatedBookCard(
-                    book = book,
-                    onClick = { onBookClick(book.id, "top-rated") },
-                    onBookmarkClick = { /* TODO */ },
-                    coverModifier = Modifier.sharedElement(
-                        rememberSharedContentState(key = "top-rated-cover-${book.id}"),
-                        animatedVisibilityScope = animatedVisibilityScope,
-                        clipInOverlayDuringTransition = OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(Dimens.CornerCoverInner))
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = screenPadding.calculateTopPadding()),
+                contentPadding = PaddingValues(
+                    start = Spacing.Medium,
+                    end = Spacing.Medium,
+                    bottom = paddingValues.calculateBottomPadding() + Spacing.Large + 24.dp
+                ),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.Medium),
+                verticalArrangement = Arrangement.spacedBy(Spacing.Medium)
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "Recents",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(top = Spacing.Large + 14.dp, bottom = Spacing.Small),
+                        color = MaterialTheme.colorScheme.onBackground
                     )
-                )
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.Medium),
+                        contentPadding = PaddingValues(end = Dimens.NotificationButtonSize + Spacing.Medium)
+                    ) {
+                        items(recentBooks) { book ->
+                            RecentBookCard(
+                                book = book, 
+                                onClick = { onBookClick(book.id, "recent") },
+                                coverModifier = Modifier.sharedElement(
+                                    rememberSharedContentState(key = "recent-cover-${book.id}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    boundsTransform = { _, _ -> tween(durationMillis = 400) },
+                                    clipInOverlayDuringTransition = OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(Dimens.CornerCoverInner))
+                                )
+                            )
+                        }
+                    }
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "Top Rated",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(top = Spacing.Large, bottom = Spacing.Small),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                items(topRatedBooks) { book ->
+                    TopRatedBookCard(
+                        book = book,
+                        onClick = { onBookClick(book.id, "top-rated") },
+                        onBookmarkClick = { /* TODO */ },
+                        coverModifier = Modifier.sharedElement(
+                            rememberSharedContentState(key = "top-rated-cover-${book.id}"),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            boundsTransform = { _, _ -> tween(durationMillis = 400) },
+                            clipInOverlayDuringTransition = OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(Dimens.CornerCoverInner))
+                        )
+                    )
+                }
             }
         }
     }

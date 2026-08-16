@@ -16,15 +16,7 @@ object BookRepository {
     // Background scope for DataStore I/O — lives as long as the process.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val seedBooks = listOf(
-        Book("1", "Clean Code", "Robert C. Martin", progress = 0.45f, pageCount = 464, currentPage = 208, lastReadDate = "2 dias atrás"),
-        Book("2", "The Pragmatic Programmer", "Andy Hunt", progress = 1.0f, pageCount = 352, currentPage = 352, lastReadDate = "Ontem"),
-        Book("3", "Kotlin in Action", "Dmitry Jemerov", progress = 0.75f, pageCount = 360, currentPage = 270, lastReadDate = "Hoje"),
-        Book("4", "Refactoring", "Martin Fowler", progress = 1.0f, pageCount = 448, currentPage = 448, lastReadDate = "Semana passada"),
-        Book("5", "Design Patterns", "Gang of Four", progress = 0.1f, pageCount = 395, currentPage = 40, lastReadDate = "3 dias atrás")
-    )
-
-    private val _books = MutableStateFlow<List<Book>>(seedBooks)
+    private val _books = MutableStateFlow<List<Book>>(emptyList())
     val books: StateFlow<List<Book>> = _books.asStateFlow()
 
     private val _user = MutableStateFlow(User(
@@ -47,6 +39,7 @@ object BookRepository {
             val bookStore = BookStore(context.applicationContext)
             store = bookStore
             initialized = true
+            CollectionRepository.initialize(context)
             scope.launch {
                 val persisted = bookStore.loadBooks()
                 if (persisted != null) {
@@ -71,6 +64,30 @@ object BookRepository {
     fun updateBook(updatedBook: Book) {
         _books.value = _books.value.map {
             if (it.id == updatedBook.id) updatedBook else it
+        }
+        persist()
+    }
+
+    fun toggleChapterReadState(bookId: String, chapterId: String) {
+        _books.value = _books.value.map { book ->
+            if (book.id == bookId) {
+                val updatedChapters = book.chapters.map { ch ->
+                    if (ch.id == chapterId) ch.copy(isRead = !ch.isRead) else ch
+                }
+                book.copy(chapters = updatedChapters)
+            } else book
+        }
+        persist()
+    }
+
+    fun toggleChapterBookmark(bookId: String, chapterId: String) {
+        _books.value = _books.value.map { book ->
+            if (book.id == bookId) {
+                val updatedChapters = book.chapters.map { ch ->
+                    if (ch.id == chapterId) ch.copy(isBookmarked = !ch.isBookmarked) else ch
+                }
+                book.copy(chapters = updatedChapters)
+            } else book
         }
         persist()
     }
