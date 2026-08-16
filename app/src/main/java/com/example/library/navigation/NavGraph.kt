@@ -26,6 +26,9 @@ import com.example.library.screens.upload.UploadScreen
 import com.example.library.viewmodel.ThemeViewModel
 import com.example.library.model.Book
 import com.example.library.model.Chapter
+import com.example.library.data.BookRepository
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -139,19 +142,12 @@ fun NavGraph(
                 route = Screen.BookDetail.route
             ) { backStackEntry ->
                 val bookId = backStackEntry.arguments?.getString("bookId") ?: ""
-                
-                // Fetch book - ideally from ViewModel, mocking here for now based on ID
-                val book = Book(
-                    id = bookId,
-                    title = "Book Title",
-                    author = "Author Name",
-                    chapters = listOf(
-                        Chapter("1", "Chapter 1", "10 pages"),
-                        Chapter("2", "Chapter 2", "15 pages")
-                    )
-                )
                 val origin = backStackEntry.arguments?.getString("origin") ?: ""
-                
+
+                val books by BookRepository.books.collectAsState()
+                val book = books.firstOrNull { it.id == bookId }
+                    ?: Book(id = bookId, title = "Livro desconhecido", author = "")
+
                 BookDetailScreen(
                     book = book,
                     origin = origin,

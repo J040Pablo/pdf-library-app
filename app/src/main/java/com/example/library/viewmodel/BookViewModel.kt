@@ -2,49 +2,66 @@ package com.example.library.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.library.data.BookRepository
 import com.example.library.model.Book
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 
+/** Number of books shown in the "Recents" row on HomeScreen. */
+private const val RECENT_BOOKS_LIMIT = 5
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class BookViewModel : ViewModel() {
 
-    private val _recentBooks = MutableStateFlow<List<Book>>(emptyList())
-    val recentBooks: StateFlow<List<Book>> = _recentBooks.asStateFlow()
+    /**
+     * The 5 most-recently added books, newest first.
+     * Derived reactively from [BookRepository.books] — updates instantly whenever
+     * a book is imported, removed, or updated.
+     */
+    val recentBooks: StateFlow<List<Book>> = BookRepository.books
+        .map { books -> books.takeLast(RECENT_BOOKS_LIMIT).reversed() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = BookRepository.books.value.takeLast(RECENT_BOOKS_LIMIT).reversed()
+        )
 
-    private val _topRatedBooks = MutableStateFlow<List<Book>>(emptyList())
-    val topRatedBooks: StateFlow<List<Book>> = _topRatedBooks.asStateFlow()
+    /**
+     * All books sorted by rating (highest first), including newly imported ones
+     * whose rating is 0f — they appear at the end rather than being filtered out.
+     */
+    val topRatedBooks: StateFlow<List<Book>> = BookRepository.books
+        .map { books -> books.sortedByDescending { it.rating } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = BookRepository.books.value.sortedByDescending { it.rating }
+        )
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _searchResults = MutableStateFlow<List<Book>>(emptyList())
-    val searchResults: StateFlow<List<Book>> = _searchResults.asStateFlow()
-
-    init {
-        loadMockData()
-    }
-
-    private fun loadMockData() {
-        val mockBooks = listOf(
-            Book("1", "Clean Code", "Robert C. Martin", null, 0.45f, 4.8f, true),
-            Book("2", "The Pragmatic Programmer", "Andy Hunt", null, 0.20f, 4.9f),
-            Book("3", "Kotlin in Action", "Dmitry Jemerov", null, 0.75f, 4.7f),
-            Book("4", "Jetpack Compose Essentials", "Neil Smyth", null, 0.10f, 4.6f, true),
-            Book("5", "Refactoring", "Martin Fowler", null, 0.60f, 4.9f),
-            Book("6", "Design Patterns", "Gang of Four", null, 0.30f, 4.8f, true)
-        )
-        _recentBooks.value = mockBooks.take(3)
-        _topRatedBooks.value = mockBooks
-    }
+    /**
+     * Live search results filtered from the full repository list.
+     * Combines the query and the repository's book list so results update
+     * correctly even if new books are imported mid-session.
+     */
+    val searchResults: StateFlow<List<Book>> = combine(
+        _searchQuery,
+        BookRepository.books
+    ) { query, books ->
+        if (query.isBlank()) emptyList()
+        else books.filter {
+            it.title.contains(query, ignoreCase = true) ||
+                it.author.contains(query, ignoreCase = true)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
-        if (query.isBlank()) {
-            _searchResults.value = emptyList()
-        } else {
-            _searchResults.value = _topRatedBooks.value.filter {
-                it.title.contains(query, ignoreCase = true) || it.author.contains(query, ignoreCase = true)
-            }
-        }
     }
 }

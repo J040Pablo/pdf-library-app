@@ -29,6 +29,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.library.model.Book
 import com.example.library.model.Chapter
 import com.example.library.ui.components.BookCoverPlaceholder
@@ -300,12 +302,19 @@ fun SharedTransitionScope.BookDetailScreen(
                     boundsTransform = { _, _ -> tween(durationMillis = 400) }
                 )
         ) {
-            BookCoverPlaceholder(
-                title = book.title,
-                modifier = Modifier.fillMaxSize()
-                // NOTE: once this is a real Image(...), pass contentScale = ContentScale.Crop
-                // so it fills these interpolated bounds cleanly at every step.
-            )
+            if (book.coverUrl != null) {
+                AsyncImage(
+                    model = book.coverUrl,
+                    contentDescription = book.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                BookCoverPlaceholder(
+                    title = book.title,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         // ---- Title ----
@@ -422,21 +431,22 @@ fun BookDetailPreviewHost() {
         SharedTransitionLayout {
 
             val mockChaptersShort = listOf(
-                Chapter("1", "Introduction", "10 pages"),
-                Chapter("2", "Getting Started", "15 pages"),
-                Chapter("3", "Next Steps", "20 pages")
+                Chapter("1", "Introduction", "10 pages", startPage = 0, endPage = 9),
+                Chapter("2", "Getting Started", "15 pages", startPage = 10, endPage = 24),
+                Chapter("3", "Next Steps", "20 pages", startPage = 25, endPage = 44)
             )
 
             val mockChapters = listOf(
-                Chapter("1", "The Architecture of UI", "24 pages"),
-                Chapter("2", "State Management Patterns", "18 pages"),
-                Chapter("3", "Gestures and Meaningful Motion", "30 pages"),
-                Chapter("4", "Navigating the Unknown", "22 pages"),
-                Chapter("5", "Shared Elements in Practice", "35 pages")
+                Chapter("1", "The Architecture of UI", "24 pages", startPage = 0, endPage = 23),
+                Chapter("2", "State Management Patterns", "18 pages", startPage = 24, endPage = 41),
+                Chapter("3", "Gestures and Meaningful Motion", "30 pages", startPage = 42, endPage = 71),
+                Chapter("4", "Navigating the Unknown", "22 pages", startPage = 72, endPage = 93),
+                Chapter("5", "Shared Elements in Practice", "35 pages", startPage = 94, endPage = 128)
             )
 
             val mockChaptersLong = (1..30).map { i ->
-                Chapter(i.toString(), "Chapter $i that explains something deep", "${i * 5} pages")
+                Chapter(i.toString(), "Chapter $i that explains something deep", "${i * 5} pages",
+                    startPage = (i - 1) * 5, endPage = i * 5 - 1)
             }
 
             val mockBooks = listOf(

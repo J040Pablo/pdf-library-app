@@ -22,6 +22,12 @@ object BookRepository {
     ))
     val user: StateFlow<User> = _user.asStateFlow()
 
+    // TODO: For persistence across process death, serialize books to DataStore
+    // following the pattern already used in ThemeDataStore.kt.
+    fun addBook(book: Book) {
+        _books.value = _books.value + book
+    }
+
     fun removeBook(bookId: String) {
         _books.value = _books.value.filter { it.id != bookId }
     }
