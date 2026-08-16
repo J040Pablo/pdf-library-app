@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.example.library.data.BookRepository
 import com.example.library.data.ThemePreference
 import com.example.library.ui.theme.LibraryTheme
 import com.example.library.viewmodel.ThemeViewModel
@@ -23,6 +24,9 @@ class MainActivity : ComponentActivity() {
         // Edge-to-edge: status bar and nav bar are rendered transparently.
         // Their icon colours are adjusted in LibraryTheme's SideEffect.
         enableEdgeToEdge()
+
+        // Kick off DataStore load before the first composition.
+        BookRepository.initialize(applicationContext)
 
         setContent {
             val preference by themeViewModel.themePreference.collectAsState()

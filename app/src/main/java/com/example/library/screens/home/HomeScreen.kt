@@ -199,7 +199,8 @@ fun SharedTransitionScope.HomeScreen(
                             onClick = { onBookClick(book.id, "recent") },
                             coverModifier = Modifier.sharedElement(
                                 rememberSharedContentState(key = "recent-cover-${book.id}"),
-                                animatedVisibilityScope = animatedVisibilityScope
+                                animatedVisibilityScope = animatedVisibilityScope,
+                                clipInOverlayDuringTransition = OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(Dimens.CornerCoverInner))
                             )
                         )
                     }
@@ -223,7 +224,8 @@ fun SharedTransitionScope.HomeScreen(
                     onBookmarkClick = { /* TODO */ },
                     coverModifier = Modifier.sharedElement(
                         rememberSharedContentState(key = "top-rated-cover-${book.id}"),
-                        animatedVisibilityScope = animatedVisibilityScope
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        clipInOverlayDuringTransition = OverlayClip(androidx.compose.foundation.shape.RoundedCornerShape(Dimens.CornerCoverInner))
                     )
                 )
             }

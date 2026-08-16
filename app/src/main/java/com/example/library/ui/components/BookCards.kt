@@ -20,12 +20,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.combinedClickable
+import coil.compose.AsyncImage
 import com.example.library.model.Book
 import com.example.library.ui.theme.*
 import kotlin.math.sin
@@ -62,12 +64,21 @@ fun RecentBookCard(
                     .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.AutoStories,
-                    contentDescription = null,
-                    modifier = Modifier.size(72.dp),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
-                )
+                if (book.coverUrl != null) {
+                    AsyncImage(
+                        model = book.coverUrl,
+                        contentDescription = book.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.AutoStories,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
+                    )
+                }
             }
 
             WavyProgressBar(
@@ -134,16 +145,25 @@ fun TopRatedBookCard(
                     .clip(RoundedCornerShape(Dimens.CornerCoverInner))
                     .background(MaterialTheme.colorScheme.secondaryContainer)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoStories,
-                        contentDescription = null,
-                        modifier = Modifier.size(Dimens.IconXLarge),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
+                if (book.coverUrl != null) {
+                    AsyncImage(
+                        model = book.coverUrl,
+                        contentDescription = book.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoStories,
+                            contentDescription = null,
+                            modifier = Modifier.size(Dimens.IconXLarge),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.4f)
+                        )
+                    }
                 }
 
                 IconButton(
@@ -284,10 +304,19 @@ fun LibraryBookItem(
                     .then(coverModifier)
                     .clip(RoundedCornerShape(Dimens.CornerCard))
             ) {
-                BookCoverPlaceholder(
-                    title = book.title,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (book.coverUrl != null) {
+                    AsyncImage(
+                        model = book.coverUrl,
+                        contentDescription = book.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    BookCoverPlaceholder(
+                        title = book.title,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 if (isSelected) {
                     Box(
                         modifier = Modifier

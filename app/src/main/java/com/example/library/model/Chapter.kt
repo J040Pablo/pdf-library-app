@@ -8,4 +8,6 @@ data class Chapter(
     val startPage: Int = 0,
     /** 0-indexed page number of the last page in this chapter (null = end of document). */
     val endPage: Int? = null
-)
+) {
+    companion object
+}

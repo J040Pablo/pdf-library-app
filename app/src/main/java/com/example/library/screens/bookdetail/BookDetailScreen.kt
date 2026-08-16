@@ -50,6 +50,7 @@ import com.example.library.ui.theme.Spacing
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import androidx.compose.foundation.MutatePriority
 import kotlinx.coroutines.launch
 
 // How far the user needs to pull past the top before the cover is fully
@@ -75,7 +76,8 @@ fun SharedTransitionScope.BookDetailScreen(
     origin: String,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onFullScreenExpansionChanged: (Float) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -92,33 +94,56 @@ fun SharedTransitionScope.BookDetailScreen(
     val expansion = remember { Animatable(0f) }
     var isFullscreenOpen by remember { mutableStateOf(false) }
 
+    LaunchedEffect(expansion.value) {
+        onFullScreenExpansionChanged(expansion.value)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onFullScreenExpansionChanged(0f)
+        }
+    }
+
     val activationDistancePx = with(density) { FullscreenActivationDistance.toPx() }
+    val brakeThresholdPx = with(density) { 48.dp.toPx() }
+    var accumulatedPullPx by remember { mutableFloatStateOf(0f) }
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // If the cover is mid-expansion and the user starts scrolling
-                // the list again, let that gesture close the expansion first
-                // instead of scrolling chapters underneath it.
+                // If cover is expanding (or open) and user scrolls upward,
+                // collapse expansion before scrolling chapters underneath.
                 if (!isFullscreenOpen && expansion.value > 0f && available.y < 0f) {
-                    val consumePx = min(expansion.value * activationDistancePx, -available.y)
+                    val currentProgressPx = brakeThresholdPx + expansion.value * activationDistancePx
+                    val nextProgressPx = (currentProgressPx + available.y).coerceAtLeast(0f)
+                    accumulatedPullPx = nextProgressPx
+                    val nextExpansion = if (nextProgressPx > brakeThresholdPx) {
+                        (nextProgressPx - brakeThresholdPx) / activationDistancePx
+                    } else 0f
                     coroutineScope.launch {
-                        expansion.snapTo((expansion.value - consumePx / activationDistancePx).coerceIn(0f, 1f))
+                        expansion.snapTo(nextExpansion.coerceIn(0f, 1f))
                     }
-                    return Offset(0f, -consumePx)
+                    return Offset(0f, available.y)
                 }
                 return Offset.Zero
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (!isFullscreenOpen &&
+                // Only respond to direct user drag gestures (ignore fling inertia)
+                // and only after reaching the normal scroll boundary (top of list).
+                if (source == NestedScrollSource.UserInput &&
+                    !isFullscreenOpen &&
                     available.y > 0f &&
                     listState.firstVisibleItemIndex == 0 &&
                     listState.firstVisibleItemScrollOffset == 0
                 ) {
+                    accumulatedPullPx += available.y
+                    val nextExpansion = if (accumulatedPullPx > brakeThresholdPx) {
+                        ((accumulatedPullPx - brakeThresholdPx) / activationDistancePx).coerceIn(0f, 1f)
+                    } else 0f
+
                     coroutineScope.launch {
-                        val next = (expansion.value + available.y / activationDistancePx).coerceIn(0f, 1f)
-                        expansion.snapTo(next)
+                        expansion.snapTo(nextExpansion)
                     }
                     return Offset(0f, available.y)
                 }
@@ -126,12 +151,14 @@ fun SharedTransitionScope.BookDetailScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (!isFullscreenOpen && expansion.value > 0f) {
+                if (!isFullscreenOpen && (expansion.value > 0f || accumulatedPullPx > 0f)) {
                     if (expansion.value >= FullscreenOpenThreshold) {
                         expansion.animateTo(1f, FullscreenExpandSpring)
                         isFullscreenOpen = true
                     } else {
                         expansion.animateTo(0f, FullscreenExpandSpring)
+                        accumulatedPullPx = 0f
+                        isFullscreenOpen = false
                     }
                 }
                 return Velocity.Zero
@@ -161,7 +188,7 @@ fun SharedTransitionScope.BookDetailScreen(
         val collapseProgress = if (listState.firstVisibleItemIndex > 0) 1f
         else min(1f, max(0f, listState.firstVisibleItemScrollOffset / max(1f, headerDropPx)))
 
-        val e = expansion.value
+        val e = expansion.value.coerceIn(0f, 1f)
 
         // ---- Chapters list ----
         LazyColumn(
@@ -274,6 +301,10 @@ fun SharedTransitionScope.BookDetailScreen(
                                         } else {
                                             expansion.animateTo(0f, FullscreenExpandSpring)
                                             isFullscreenOpen = false
+                                            accumulatedPullPx = 0f
+                                            // Cancel any in-flight scroll/fling on the chapter list
+                                            // so closing fullscreen never moves or flings the list.
+                                            listState.scroll(MutatePriority.PreventUserInput) {}
                                         }
                                     }
                                 },
@@ -299,7 +330,8 @@ fun SharedTransitionScope.BookDetailScreen(
                 .sharedElement(
                     rememberSharedContentState(key = "${origin}-cover-${book.id}"),
                     animatedVisibilityScope = animatedVisibilityScope,
-                    boundsTransform = { _, _ -> tween(durationMillis = 400) }
+                    boundsTransform = { _, _ -> tween(durationMillis = 400) },
+                    clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCoverInner))
                 )
         ) {
             if (book.coverUrl != null) {
@@ -319,6 +351,7 @@ fun SharedTransitionScope.BookDetailScreen(
 
         // ---- Title ----
         val titleTopMargin = originCoverY + with(density) { coverHeightMax.toPx() } + with(density) { 32.dp.toPx() }
+        var titleHeightPx by remember { mutableFloatStateOf(0f) }
 
         Text(
             text = book.title,
@@ -339,6 +372,10 @@ fun SharedTransitionScope.BookDetailScreen(
 
                     val width = placeable.width
                     val height = placeable.height
+
+                    if (collapseProgress == 0f || titleHeightPx == 0f) {
+                        titleHeightPx = height.toFloat()
+                    }
 
                     val expandedLeft = (screenWidthPx - width) / 2f
                     val expandedTop = titleTopMargin
@@ -363,7 +400,6 @@ fun SharedTransitionScope.BookDetailScreen(
         )
 
         // ---- Author ----
-        val authorTopMargin = titleTopMargin + with(density) { 56.dp.toPx() }
         Text(
             text = book.author,
             style = MaterialTheme.typography.bodyLarge,
@@ -374,8 +410,12 @@ fun SharedTransitionScope.BookDetailScreen(
                     val width = placeable.width
                     val expandedLeft = (screenWidthPx - width) / 2f
 
+                    val spacingPx = with(density) { 12.dp.toPx() }
+                    val effectiveTitleHeight = if (titleHeightPx > 0f) titleHeightPx else with(density) { 36.dp.toPx() }
+                    val dynamicAuthorTopMargin = titleTopMargin + effectiveTitleHeight + spacingPx
+
                     layout(width, placeable.height) {
-                        placeable.placeRelative(expandedLeft.toInt(), authorTopMargin.toInt())
+                        placeable.placeRelative(expandedLeft.toInt(), dynamicAuthorTopMargin.toInt())
                     }
                 }
                 .graphicsLayer {
@@ -481,7 +521,8 @@ fun BookDetailPreviewHost() {
                                 onClick = { selectedBook = book },
                                 coverModifier = Modifier.sharedElement(
                                     rememberSharedContentState(key = "${originStr}-cover-${book.id}"),
-                                    animatedVisibilityScope = this@AnimatedVisibility
+                                    animatedVisibilityScope = this@AnimatedVisibility,
+                                    clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCoverInner))
                                 )
                             )
                         }

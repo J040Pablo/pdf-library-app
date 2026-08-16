@@ -32,6 +32,7 @@ import com.example.library.model.Book
 import com.example.library.model.Collection
 import com.example.library.ui.components.LibraryBookItem
 import com.example.library.ui.components.CollectionCoverThumbnail
+import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.LibraryTheme
 import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.CollectionViewModel
@@ -173,7 +174,8 @@ private fun SharedTransitionScope.CollectionDetailContent(
                         },
                         coverModifier = Modifier.sharedElement(
                             rememberSharedContentState(key = "collection-detail-cover-${book.id}"),
-                            animatedVisibilityScope = animatedVisibilityScope
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            clipInOverlayDuringTransition = OverlayClip(RoundedCornerShape(Dimens.CornerCard))
                         )
                     )
                 }

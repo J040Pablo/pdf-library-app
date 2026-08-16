@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -18,9 +19,15 @@ import com.example.library.ui.theme.Elevation
 import com.example.library.ui.theme.Spacing
 
 @Composable
-fun BottomNavigationBar(navController: NavController) {
+fun BottomNavigationBar(
+    navController: NavController,
+    fullScreenExpansion: Float = 0f
+) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    // Hide smoothly during fullscreen cover expansion
+    val progress = fullScreenExpansion.coerceIn(0f, 1f)
 
     Box(
         modifier = Modifier
@@ -30,12 +37,15 @@ fun BottomNavigationBar(navController: NavController) {
                 bottom = Spacing.Large,
                 start = Spacing.XXLarge,
                 end = Spacing.XXLarge
-            ),
+            )
+            .graphicsLayer {
+                alpha = 1f - progress
+                translationY = progress * 150.dp.toPx()
+            },
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
             shape = CircleShape,
-            // Uses MaterialTheme surface — adapts to light/dark automatically
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = Elevation.High,
             tonalElevation = Elevation.None,
@@ -79,13 +89,10 @@ fun BottomNavigationBar(navController: NavController) {
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            // Selected icon & label — primary colour
                             selectedIconColor = MaterialTheme.colorScheme.primary,
                             selectedTextColor = MaterialTheme.colorScheme.primary,
-                            // Unselected icon & label — muted surface variant
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            // Active indicator uses primaryContainer
                             indicatorColor = MaterialTheme.colorScheme.primaryContainer
                         )
                     )

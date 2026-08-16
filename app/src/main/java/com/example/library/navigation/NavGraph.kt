@@ -35,7 +35,8 @@ import androidx.compose.runtime.getValue
 fun NavGraph(
     navController: NavHostController,
     paddingValues: PaddingValues,
-    themeViewModel: ThemeViewModel
+    themeViewModel: ThemeViewModel,
+    onFullScreenExpansionChanged: (Float) -> Unit = {}
 ) {
     val enterTrans: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition? = {
         val initialRoute = initialState.destination.route?.substringBefore("/")?.substringBefore("?")
@@ -152,7 +153,8 @@ fun NavGraph(
                     book = book,
                     origin = origin,
                     animatedVisibilityScope = this@composable,
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = { navController.popBackStack() },
+                    onFullScreenExpansionChanged = onFullScreenExpansionChanged
                 )
             }
             composable(
