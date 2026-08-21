@@ -4,7 +4,14 @@ data class User(
     val name: String,
     val email: String,
     val avatarUrl: String? = null,
-    val annualGoal: Int = 30,
-    val monthlyGoal: Int = 4,
-    val totalTimeReadingHours: Int = 18
-)
+    val annualGoal: Int = 12,
+    val monthlyGoal: Int = 1,
+    val totalTimeReadingHours: Int = 0
+) {
+    companion object {
+        fun default() = User(
+            name = "Reader",
+            email = ""
+        )
+    }
+}

@@ -150,7 +150,12 @@ fun NavGraph(
             ) {
                 ProfileScreen(
                     paddingValues = paddingValues,
-                    themeViewModel = themeViewModel
+                    themeViewModel = themeViewModel,
+                    onAddBookClick = {
+                        navController.navigate(Screen.Upload.route) {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
             composable(

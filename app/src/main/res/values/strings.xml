@@ -222,7 +222,8 @@
     <string name="backup_subtitle">Sync data to the cloud</string>
     <string name="about_app">About</string>
     <string name="about_app_subtitle">Version and developers</string>
-    <string name="empty_profile_message">Add your first book to see your stats here.</string>
+    <string name="empty_profile_title">Start your reading journey</string>
+    <string name="empty_profile_message">Add your first book to see your stats grow here.</string>
 
     <!-- Book cards -->
     <string name="percent_complete">%1$d%% complete</string>

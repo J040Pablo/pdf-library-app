@@ -1,48 +1,85 @@
 package com.example.library.screens.profile
 
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.library.R
+import com.example.library.data.ThemePreference
 import com.example.library.model.Book
 import com.example.library.model.User
+import com.example.library.viewmodel.ProfileStats
 import com.example.library.viewmodel.ProfileViewModel
 import com.example.library.viewmodel.ThemeViewModel
-import com.example.library.data.ThemePreference
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     paddingValues: PaddingValues = PaddingValues(0.dp),
     viewModel: ProfileViewModel = viewModel(),
-    themeViewModel: ThemeViewModel = viewModel()
+    themeViewModel: ThemeViewModel = viewModel(),
+    onAddBookClick: () -> Unit = {}
 ) {
     val user by viewModel.user.collectAsState()
     val stats by viewModel.stats.collectAsState()
     val lastReadBook by viewModel.lastReadBook.collectAsState()
     val books by viewModel.books.collectAsState()
+    val isLibraryEmpty = books.isEmpty()
 
     Scaffold(
         topBar = {
@@ -54,44 +91,41 @@ fun ProfileScreen(
             )
         }
     ) { padding ->
-        if (books.isEmpty()) {
-            EmptyProfileState(padding)
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = padding.calculateTopPadding()),
-                contentPadding = PaddingValues(
-                    bottom = paddingValues.calculateBottomPadding() + 32.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // 1. Header
-                item {
-                    ProfileHeader(user)
-                }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding()),
+            contentPadding = PaddingValues(
+                bottom = paddingValues.calculateBottomPadding() + 32.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            item {
+                ProfileHeader(user)
+            }
 
-                // 2. Stats Section
+            if (isLibraryEmpty) {
                 item {
-                    StatsSection(stats)
+                    EmptyLibraryBanner(onAddBookClick = onAddBookClick)
                 }
+            }
 
-                // 3. Recent Activity
-                lastReadBook?.let { book ->
-                    item {
-                        RecentActivitySection(book)
-                    }
-                }
+            item {
+                StatsSection(stats)
+            }
 
-                // 4. Goals Section
+            lastReadBook?.let { book ->
                 item {
-                    GoalsSection(user, stats)
+                    RecentActivitySection(book)
                 }
+            }
 
-                // 5. Settings Section
-                item {
-                    SettingsSection(themeViewModel)
-                }
+            item {
+                GoalsSection(user, stats)
+            }
+
+            item {
+                SettingsSection(themeViewModel)
             }
         }
     }
@@ -120,22 +154,24 @@ fun ProfileHeader(user: User) {
                 tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
             )
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         Text(
             text = user.name,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
-        Text(
-            text = user.email,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
+        if (user.email.isNotBlank()) {
+            Text(
+                text = user.email,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         OutlinedButton(
             onClick = { /* TODO */ },
             shape = RoundedCornerShape(12.dp)
@@ -148,11 +184,63 @@ fun ProfileHeader(user: User) {
 }
 
 @Composable
-fun StatsSection(stats: com.example.library.viewmodel.ProfileStats) {
+fun EmptyLibraryBanner(onAddBookClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.AutoStories,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.empty_profile_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.empty_profile_message),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onAddBookClick,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(stringResource(R.string.add_book))
+            }
+        }
+    }
+}
+
+@Composable
+fun StatsSection(stats: ProfileStats) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text(stringResource(R.string.reading_summary), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            stringResource(R.string.reading_summary),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        
+
         Row(modifier = Modifier.fillMaxWidth()) {
             StatsCard(
                 label = stringResource(R.string.books),
@@ -192,7 +280,13 @@ fun StatsSection(stats: com.example.library.viewmodel.ProfileStats) {
 }
 
 @Composable
-fun StatsCard(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
+fun StatsCard(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
@@ -210,15 +304,24 @@ fun StatsCard(label: String, value: String, icon: ImageVector, color: Color, mod
 @Composable
 fun RecentActivitySection(book: Book) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text(stringResource(R.string.recent_activity), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            stringResource(R.string.recent_activity),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp))
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+            )
         ) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
                     modifier = Modifier
                         .size(50.dp, 75.dp)
@@ -228,11 +331,15 @@ fun RecentActivitySection(book: Book) {
                 ) {
                     Text(book.title.take(1), fontWeight = FontWeight.Bold)
                 }
-                
+
                 Spacer(modifier = Modifier.width(16.dp))
-                
+
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(book.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        book.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(
                         stringResource(R.string.read_on, book.lastReadDate ?: ""),
                         style = MaterialTheme.typography.bodySmall,
@@ -240,8 +347,11 @@ fun RecentActivitySection(book: Book) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = book.progress,
-                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape)
+                        progress = { book.progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(CircleShape)
                     )
                 }
             }
@@ -250,11 +360,15 @@ fun RecentActivitySection(book: Book) {
 }
 
 @Composable
-fun GoalsSection(user: User, stats: com.example.library.viewmodel.ProfileStats) {
+fun GoalsSection(user: User, stats: ProfileStats) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text(stringResource(R.string.your_goals), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            stringResource(R.string.your_goals),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -273,7 +387,7 @@ fun GoalsSection(user: User, stats: com.example.library.viewmodel.ProfileStats) 
                 Spacer(modifier = Modifier.height(16.dp))
                 GoalItem(
                     title = stringResource(R.string.monthly_goal),
-                    current = 2, // Example value for monthly
+                    current = stats.monthlyFinishedBooks,
                     target = user.monthlyGoal,
                     unit = stringResource(R.string.books_unit)
                 )
@@ -284,15 +398,26 @@ fun GoalsSection(user: User, stats: com.example.library.viewmodel.ProfileStats) 
 
 @Composable
 fun GoalItem(title: String, current: Int, target: Int, unit: String) {
+    val progress = if (target > 0) {
+        (current.toFloat() / target).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
     Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Text("$current / $target $unit", style = MaterialTheme.typography.bodySmall)
         }
         Spacer(modifier = Modifier.height(8.dp))
         LinearProgressIndicator(
-            progress = current.toFloat() / target,
-            modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(CircleShape),
             color = MaterialTheme.colorScheme.primary,
             trackColor = MaterialTheme.colorScheme.primaryContainer
         )
@@ -304,9 +429,13 @@ fun SettingsSection(themeViewModel: ThemeViewModel) {
     val themePreference by themeViewModel.themePreference.collectAsState()
 
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text(stringResource(R.string.settings), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            stringResource(R.string.settings),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         SettingItem(
             icon = Icons.Outlined.DarkMode,
             title = stringResource(R.string.dark_theme),
@@ -355,52 +484,20 @@ fun SettingItem(
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         if (hasSwitch) {
             Switch(checked = checked, onCheckedChange = onCheckedChange)
         } else {
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
-        }
-    }
-}
-
-@Composable
-fun EmptyProfileState(padding: PaddingValues) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.AutoStories,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            "Start your reading journey",
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.empty_profile_message),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-        Button(
-            onClick = { /* TODO: Navigate to Library or Add */ },
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(stringResource(R.string.add_book))
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }

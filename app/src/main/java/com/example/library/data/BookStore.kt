@@ -9,6 +9,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.example.library.model.Book
 import com.example.library.model.BookFormat
 import com.example.library.model.Chapter
+import com.example.library.model.User
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
@@ -24,6 +25,7 @@ class BookStore(private val context: Context) {
         private val BOOKS_KEY = stringPreferencesKey("book_list_json")
         private val COLLECTIONS_KEY = stringPreferencesKey("collection_list_json")
         private val SEARCH_HISTORY_KEY = stringPreferencesKey("search_history_json")
+        private val USER_KEY = stringPreferencesKey("user_profile_json")
     }
 
     /** Persists [books] as a JSON array string. */
@@ -86,6 +88,26 @@ class BookStore(private val context: Context) {
             List(array.length()) { i -> array.getString(i) }
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    suspend fun saveUser(user: User) {
+        context.bookDataStore.edit { prefs ->
+            prefs[USER_KEY] = user.toJson().toString()
+        }
+    }
+
+    /**
+     * Reads the persisted user profile.
+     * Returns `null` if no profile has been saved yet (first launch).
+     */
+    suspend fun loadUser(): User? {
+        val prefs = context.bookDataStore.data.first()
+        val json = prefs[USER_KEY] ?: return null
+        return try {
+            User.fromJson(JSONObject(json))
+        } catch (_: Exception) {
+            null
         }
     }
 }
@@ -166,4 +188,22 @@ fun collectionFromJson(json: JSONObject): LibraryCollection = LibraryCollection(
         List(arr.length()) { i -> arr.getString(i) }
     } ?: emptyList(),
     parentId = json.optString("parentId").takeIf { it.isNotEmpty() && it != "null" }
+)
+
+fun User.toJson(): JSONObject = JSONObject().apply {
+    put("name", name)
+    put("email", email)
+    put("avatarUrl", avatarUrl ?: JSONObject.NULL)
+    put("annualGoal", annualGoal)
+    put("monthlyGoal", monthlyGoal)
+    put("totalTimeReadingHours", totalTimeReadingHours)
+}
+
+fun User.Companion.fromJson(json: JSONObject): User = User(
+    name = json.getString("name"),
+    email = json.optString("email", ""),
+    avatarUrl = json.optString("avatarUrl").takeIf { it.isNotEmpty() && it != "null" },
+    annualGoal = json.optInt("annualGoal", 12),
+    monthlyGoal = json.optInt("monthlyGoal", 1),
+    totalTimeReadingHours = json.optInt("totalTimeReadingHours", 0)
 )

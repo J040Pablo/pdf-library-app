@@ -19,10 +19,7 @@ object BookRepository {
     private val _books = MutableStateFlow<List<Book>>(emptyList())
     val books: StateFlow<List<Book>> = _books.asStateFlow()
 
-    private val _user = MutableStateFlow(User(
-        name = "Pablo Silva",
-        email = "pablo.silva@example.com"
-    ))
+    private val _user = MutableStateFlow(User.default())
     val user: StateFlow<User> = _user.asStateFlow()
 
     @Volatile private var store: BookStore? = null
@@ -43,12 +40,24 @@ object BookRepository {
             initialized = true
             CollectionRepository.initialize(context)
             scope.launch {
-                val persisted = bookStore.loadBooks()
-                if (persisted != null) {
-                    _books.value = persisted
+                val persistedBooks = bookStore.loadBooks()
+                if (persistedBooks != null) {
+                    _books.value = persistedBooks
+                }
+                val persistedUser = bookStore.loadUser()
+                if (persistedUser != null) {
+                    _user.value = persistedUser
+                } else {
+                    // First launch: persist the default profile so it is available immediately.
+                    bookStore.saveUser(_user.value)
                 }
             }
         }
+    }
+
+    fun updateUser(user: User) {
+        _user.value = user
+        persistUser()
     }
 
     // ── Mutations ─────────────────────────────────────────────────────────────
@@ -139,5 +148,11 @@ object BookRepository {
         val s = store ?: return
         val snapshot = _books.value
         scope.launch { s.saveBooks(snapshot) }
+    }
+
+    private fun persistUser() {
+        val s = store ?: return
+        val snapshot = _user.value
+        scope.launch { s.saveUser(snapshot) }
     }
 }
