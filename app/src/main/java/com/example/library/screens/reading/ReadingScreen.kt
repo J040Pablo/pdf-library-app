@@ -1044,6 +1044,18 @@ fun ChapterTransitionCard(
     onBackToDetailClick: () -> Unit
 ) {
     val isLastChapter = nextChapter == null
+    val iconScale = remember { Animatable(0.7f) }
+
+    LaunchedEffect(isLastChapter) {
+        iconScale.snapTo(0.7f)
+        iconScale.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -1072,6 +1084,10 @@ fun ChapterTransitionCard(
                 Box(
                     modifier = Modifier
                         .size(72.dp)
+                        .graphicsLayer {
+                            scaleX = iconScale.value
+                            scaleY = iconScale.value
+                        }
                         .background(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             shape = CircleShape

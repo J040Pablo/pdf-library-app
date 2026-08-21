@@ -98,7 +98,6 @@ fun RecentBookCard(
                     )
                 }
 
-                // Bookmark icon — hidden while in selection mode to avoid gesture conflict
                 if (!isSelected) {
                     IconButton(
                         onClick = onBookmarkClick,
@@ -112,6 +111,13 @@ fun RecentBookCard(
                             modifier = Modifier.size(Dimens.IconMedium)
                         )
                     }
+
+                    FinishedBookBadge(
+                        visible = book.isFinished(),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(Spacing.Small)
+                    )
                 }
 
                 // Selection overlay — drawn last so it sits on top of the cover
@@ -232,7 +238,6 @@ fun TopRatedBookCard(
                     }
                 }
 
-                // Bookmark icon — hidden while in selection mode to avoid gesture conflict
                 if (!isSelected) {
                     IconButton(
                         onClick = onBookmarkClick,
@@ -246,6 +251,13 @@ fun TopRatedBookCard(
                             modifier = Modifier.size(Dimens.IconMedium)
                         )
                     }
+
+                    FinishedBookBadge(
+                        visible = book.isFinished(),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(Spacing.Small)
+                    )
                 }
 
                 // Selection overlay
@@ -421,6 +433,13 @@ fun LibraryBookItem(
                             modifier = Modifier.size(24.dp)
                         )
                     }
+                } else {
+                    FinishedBookBadge(
+                        visible = book.isFinished(),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(Spacing.XSmall)
+                    )
                 }
             }
 
@@ -454,10 +473,14 @@ fun LibraryBookItem(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = stringResource(
-                                R.string.percent_complete,
-                                (book.progress * 100).toInt()
-                            ),
+                            text = if (book.isFinished()) {
+                                stringResource(R.string.finished)
+                            } else {
+                                stringResource(
+                                    R.string.percent_complete,
+                                    (book.progress * 100).toInt()
+                                )
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium

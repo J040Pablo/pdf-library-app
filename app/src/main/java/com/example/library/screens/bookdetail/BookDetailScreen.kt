@@ -22,16 +22,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,6 +61,9 @@ import com.example.library.data.PdfExporter
 import com.example.library.model.Book
 import com.example.library.model.Chapter
 import com.example.library.ui.components.BookCoverPlaceholder
+import com.example.library.ui.components.ChapterReadIndicator
+import com.example.library.ui.components.ReadingProgressRing
+import com.example.library.ui.components.isFinished
 import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.Elevation
 import com.example.library.ui.theme.Spacing
@@ -311,14 +310,25 @@ fun SharedTransitionScope.BookDetailScreen(
 
             items(liveBook.chapters) { chapter ->
                 val isCurrentReadingChapter = currentReadingChapter?.id == chapter.id
+                val chapterEnd = chapter.endPage
+                    ?: (liveBook.pageCount - 1).coerceAtLeast(chapter.startPage)
+                val chapterPageCount = (chapterEnd - chapter.startPage + 1).coerceAtLeast(1)
                 val savedPageInChapter = if (isCurrentReadingChapter) {
                     (liveBook.currentPage - chapter.startPage).coerceAtLeast(0)
                 } else 0
+                val chapterProgress = when {
+                    chapter.isRead -> 1f
+                    isCurrentReadingChapter -> {
+                        ((savedPageInChapter + 1).toFloat() / chapterPageCount).coerceIn(0f, 1f)
+                    }
+                    else -> 0f
+                }
 
                 ChapterItem(
                     chapter = chapter,
                     isCurrentReadingChapter = isCurrentReadingChapter,
                     savedPageInChapter = savedPageInChapter,
+                    chapterProgress = chapterProgress,
                     onClick = { onChapterClick(chapter) },
                     onToggleRead = {
                         BookRepository.toggleChapterReadState(liveBook.id, chapter.id)
@@ -599,13 +609,15 @@ fun SharedTransitionScope.BookDetailScreen(
         )
 
        // ---- COMPACT FLOATING READING ACTION PILL BUTTON ----
+        val isFinished = liveBook.isFinished()
         val hasStartedReading = liveBook.progress > 0f || liveBook.currentPage > 0
-        val buttonText = if (hasStartedReading) {
-            stringResource(R.string.continue_reading)
-        } else {
-            stringResource(R.string.start_reading)
+        val buttonText = when {
+            isFinished -> stringResource(R.string.read_again)
+            hasStartedReading -> stringResource(R.string.continue_reading)
+            else -> stringResource(R.string.start_reading)
         }
         val fallbackChapterTitle = stringResource(R.string.chapter_one)
+        val bookCompletedMessage = stringResource(R.string.book_completed_feedback)
 
         val targetChapter = remember(liveBook, fallbackChapterTitle) {
             if (hasStartedReading) {
@@ -642,20 +654,26 @@ fun SharedTransitionScope.BookDetailScreen(
                 Row(
                     modifier = Modifier
                         .height(44.dp)
-                        .padding(horizontal = 20.dp),
+                        .padding(start = 10.dp, end = 20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = if (hasStartedReading)
-                            Icons.Default.PlayArrow
-                        else
-                            Icons.Default.AutoStories,
-                        contentDescription = buttonText,
-                        modifier = Modifier.size(20.dp)
+                    val onPrimary = MaterialTheme.colorScheme.onPrimary
+                    ReadingProgressRing(
+                        progress = liveBook.progress,
+                        size = 28.dp,
+                        strokeWidth = 2.5.dp,
+                        trackColor = onPrimary.copy(alpha = 0.35f),
+                        progressColor = onPrimary,
+                        checkColor = onPrimary,
+                        onCompleted = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(bookCompletedMessage)
+                            }
+                        }
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     Text(
                         text = buttonText,
@@ -694,6 +712,7 @@ fun ChapterItem(
     chapter: Chapter,
     isCurrentReadingChapter: Boolean = false,
     savedPageInChapter: Int = 0,
+    chapterProgress: Float = 0f,
     onClick: () -> Unit = {},
     onToggleRead: () -> Unit = {},
     onToggleBookmark: () -> Unit = {}
@@ -727,14 +746,11 @@ fun ChapterItem(
                 onClick = onToggleRead,
                 modifier = Modifier.size(36.dp)
             ) {
-                Icon(
-                    imageVector = if (chapter.isRead) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                    contentDescription = if (chapter.isRead) {
-                        stringResource(R.string.mark_as_unread)
-                    } else {
-                        stringResource(R.string.mark_as_read)
-                    },
-                    tint = if (chapter.isRead) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                ChapterReadIndicator(
+                    isRead = chapter.isRead,
+                    chapterProgress = chapterProgress,
+                    size = 28.dp,
+                    strokeWidth = 2.5.dp
                 )
             }
 

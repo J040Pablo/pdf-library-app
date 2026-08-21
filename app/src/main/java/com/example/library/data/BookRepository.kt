@@ -100,7 +100,21 @@ object BookRepository {
                 val updatedChapters = book.chapters.map { ch ->
                     if (ch.id == chapterId) ch.copy(isRead = !ch.isRead) else ch
                 }
-                book.copy(chapters = updatedChapters)
+                val pageProgress = if (book.pageCount > 0) {
+                    ((book.currentPage + 1).toFloat() / book.pageCount).coerceIn(0f, 1f)
+                } else {
+                    book.progress
+                }
+                val chapterProgress = if (updatedChapters.isEmpty()) {
+                    0f
+                } else {
+                    updatedChapters.count { it.isRead }.toFloat() / updatedChapters.size
+                }
+                // Never discard page-based history when toggling chapter read state.
+                book.copy(
+                    chapters = updatedChapters,
+                    progress = maxOf(pageProgress, chapterProgress, book.progress).coerceIn(0f, 1f)
+                )
             } else book
         }
         persist()
