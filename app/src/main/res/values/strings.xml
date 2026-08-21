@@ -54,6 +54,22 @@
     <string name="import_pdf">Import PDF</string>
     <string name="search_books">Search books…</string>
     <string name="clear_all">Clear all</string>
+    <string name="new_subcollection">New subcollection</string>
+    <string name="subcollections">Subcollections</string>
+    <string name="books_in_collection">Books</string>
+    <string name="move_to_collection">Move to…</string>
+    <string name="move_books">Move books</string>
+    <string name="choose_destination">Choose destination</string>
+    <string name="library_root">Library</string>
+    <string name="collection_empty_title">This collection is empty</string>
+    <string name="collection_empty_subtitle">Add books or create a subcollection to get started</string>
+    <string name="books_count_label">%1$d books</string>
+    <string name="book_count_one">1 book</string>
+    <string name="collections_count_label">%1$d collections</string>
+    <string name="collection_count_one">1 collection</string>
+    <string name="collection_card_meta_books_and_subs">%1$s · %2$s</string>
+    <string name="breadcrumb_separator">/</string>
+    <string name="remove_from_collection">Remove from collection</string>
 
     <!-- Book detail -->
     <string name="author">Author</string>

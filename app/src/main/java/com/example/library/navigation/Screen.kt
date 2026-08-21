@@ -24,9 +24,18 @@ sealed class Screen(
     object CollectionDetail : Screen("collection_detail/{collectionId}", "Collection", Icons.Default.AutoStories) {
         fun createRoute(collectionId: String) = "collection_detail/$collectionId"
     }
-    object CreateCollection : Screen("create_collection?collectionId={collectionId}", "New Collection", Icons.Default.AutoStories) {
-        fun createRoute(collectionId: String? = null): String {
-            return if (collectionId != null) "create_collection?collectionId=$collectionId" else "create_collection"
+    object CreateCollection : Screen(
+        "create_collection?collectionId={collectionId}&parentId={parentId}",
+        "New Collection",
+        Icons.Default.AutoStories
+    ) {
+        fun createRoute(collectionId: String? = null, parentId: String? = null): String {
+            val params = buildList {
+                if (collectionId != null) add("collectionId=$collectionId")
+                if (parentId != null) add("parentId=$parentId")
+            }
+            return if (params.isEmpty()) "create_collection"
+            else "create_collection?${params.joinToString("&")}"
         }
     }
     object Reading : Screen("reading/{bookId}/{chapterId}", "Reading", Icons.Default.AutoStories) {

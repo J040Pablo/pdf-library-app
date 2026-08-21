@@ -12,10 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
@@ -23,6 +23,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.graphics.graphicsLayer
 import coil.compose.AsyncImage
+import com.example.library.R
 import com.example.library.model.Book
 import com.example.library.model.Collection
 import com.example.library.ui.theme.Dimens
@@ -52,6 +53,7 @@ fun getEffectiveCollectionCover(
 fun CollectionCard(
     collection: Collection,
     books: List<Book>,
+    childCollectionCount: Int = 0,
     isSelected: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: () -> Unit = {},
@@ -59,10 +61,25 @@ fun CollectionCard(
     coverModifier: Modifier = Modifier
 ) {
     val bookCount = collection.bookIds.size
+    val booksLabel = if (bookCount == 1) {
+        stringResource(R.string.book_count_one)
+    } else {
+        stringResource(R.string.books_count_label, bookCount)
+    }
+    val metaText = if (childCollectionCount > 0) {
+        val collectionsLabel = if (childCollectionCount == 1) {
+            stringResource(R.string.collection_count_one)
+        } else {
+            stringResource(R.string.collections_count_label, childCollectionCount)
+        }
+        stringResource(R.string.collection_card_meta_books_and_subs, booksLabel, collectionsLabel)
+    } else {
+        booksLabel
+    }
 
-    val backgroundColor = if (isSelected) 
+    val backgroundColor = if (isSelected)
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-    else 
+    else
         MaterialTheme.colorScheme.surfaceContainerHigh
 
     val clickModifier = if (onClick != null) {
@@ -99,7 +116,6 @@ fun CollectionCard(
         ) {
             val effectiveCoverUri = getEffectiveCollectionCover(collection, books)
 
-            // Cover: first book cover if available, user custom image if set, otherwise generic placeholder
             CollectionCoverThumbnail(
                 coverUri = effectiveCoverUri,
                 books = books.take(3),
@@ -117,7 +133,7 @@ fun CollectionCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = if (bookCount == 1) "1 book" else "$bookCount books",
+                    text = metaText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

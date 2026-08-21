@@ -42,6 +42,7 @@ import com.example.library.viewmodel.CollectionViewModel
 @Composable
 fun CreateCollectionScreen(
     collectionId: String? = null,
+    parentId: String? = null,
     onSave: () -> Unit,
     onCancel: () -> Unit,
     viewModel: CollectionViewModel = viewModel()
@@ -52,11 +53,12 @@ fun CreateCollectionScreen(
     CreateCollectionContent(
         allBooks = allBooks,
         collectionToEdit = collectionToEdit,
+        isSubcollection = parentId != null && collectionToEdit == null,
         onSave = { name, description, selectedIds, coverUri ->
             if (collectionToEdit != null) {
                 viewModel.updateCollection(collectionToEdit.id, name, description, selectedIds, coverUri)
             } else {
-                viewModel.createCollection(name, description, selectedIds, coverUri)
+                viewModel.createCollection(name, description, selectedIds, coverUri, parentId = parentId)
             }
             onSave()
         },
@@ -69,6 +71,7 @@ fun CreateCollectionScreen(
 internal fun CreateCollectionContent(
     allBooks: List<Book>,
     collectionToEdit: Collection? = null,
+    isSubcollection: Boolean = false,
     onSave: (name: String, description: String, selectedBookIds: List<String>, coverUri: String?) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -106,7 +109,11 @@ internal fun CreateCollectionContent(
             TopAppBar(
                 title = {
                     Text(
-                        if (collectionToEdit != null) "Edit Collection" else "New Collection",
+                        when {
+                            collectionToEdit != null -> "Edit Collection"
+                            isSubcollection -> "New Subcollection"
+                            else -> "New Collection"
+                        },
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                 },

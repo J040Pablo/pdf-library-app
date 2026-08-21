@@ -122,6 +122,7 @@ fun LibraryCollection.toJson(): JSONObject = JSONObject().apply {
     put("description", description)
     put("coverUri", coverUri ?: JSONObject.NULL)
     put("bookIds", JSONArray(bookIds))
+    put("parentId", parentId ?: JSONObject.NULL)
 }
 
 fun Book.Companion.fromJson(json: JSONObject): Book = Book(
@@ -158,5 +159,6 @@ fun collectionFromJson(json: JSONObject): LibraryCollection = LibraryCollection(
     coverUri = json.optString("coverUri").takeIf { it.isNotEmpty() && it != "null" },
     bookIds = json.optJSONArray("bookIds")?.let { arr ->
         List(arr.length()) { i -> arr.getString(i) }
-    } ?: emptyList()
+    } ?: emptyList(),
+    parentId = json.optString("parentId").takeIf { it.isNotEmpty() && it != "null" }
 )

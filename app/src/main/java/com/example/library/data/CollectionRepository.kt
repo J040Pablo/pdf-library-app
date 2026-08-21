@@ -39,8 +39,39 @@ object CollectionRepository {
         persist()
     }
 
+    /**
+     * Removes [id] and reparents its direct children to the deleted collection's parent.
+     */
     fun removeCollection(id: String) {
-        _collections.value = _collections.value.filter { it.id != id }
+        val target = _collections.value.firstOrNull { it.id == id } ?: return
+        val newParent = target.parentId
+        _collections.value = _collections.value.mapNotNull { collection ->
+            when {
+                collection.id == id -> null
+                collection.parentId == id -> collection.copy(parentId = newParent)
+                else -> collection
+            }
+        }
+        persist()
+    }
+
+    fun removeCollections(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        // Process deepest nodes first conceptually by iterating until stable:
+        // for each id, reparent children then remove.
+        var current = _collections.value
+        ids.forEach { id ->
+            val target = current.firstOrNull { it.id == id } ?: return@forEach
+            val newParent = target.parentId
+            current = current.mapNotNull { collection ->
+                when {
+                    collection.id == id -> null
+                    collection.parentId == id -> collection.copy(parentId = newParent)
+                    else -> collection
+                }
+            }
+        }
+        _collections.value = current
         persist()
     }
 
@@ -54,10 +85,53 @@ object CollectionRepository {
     fun getCollectionById(id: String): Collection? =
         _collections.value.firstOrNull { it.id == id }
 
+    /** Direct children of [parentId] (null = library root), in list order. */
+    fun childrenOf(parentId: String?): List<Collection> =
+        _collections.value.filter { it.parentId == parentId }
+
+    /** Ancestor chain from root to the parent of [id] (excludes [id] itself). */
+    fun ancestorsOf(id: String): List<Collection> {
+        val byId = _collections.value.associateBy { it.id }
+        val chain = mutableListOf<Collection>()
+        var current = byId[id]?.parentId
+        val seen = mutableSetOf<String>()
+        while (current != null && current !in seen) {
+            seen.add(current)
+            val node = byId[current] ?: break
+            chain.add(node)
+            current = node.parentId
+        }
+        return chain.asReversed()
+    }
+
     /**
-     * Removes all references to [bookIds] from every collection.
-     * Called automatically by [BookRepository.removeBooks] so collections never hold orphaned IDs.
+     * Moves [collectionId] under [newParentId] (null = root).
+     * Returns false if the move would create a cycle.
      */
+    fun moveCollection(collectionId: String, newParentId: String?): Boolean {
+        if (collectionId == newParentId) return false
+        val all = _collections.value
+        val target = all.firstOrNull { it.id == collectionId } ?: return false
+        if (target.parentId == newParentId) return true
+
+        if (newParentId != null) {
+            // Reject if newParent is the collection itself or a descendant.
+            val descendants = mutableSetOf<String>()
+            val queue = ArrayDeque<String>().apply { add(collectionId) }
+            while (queue.isNotEmpty()) {
+                val id = queue.removeFirst()
+                all.filter { it.parentId == id }.forEach { child ->
+                    if (descendants.add(child.id)) queue.add(child.id)
+                }
+            }
+            if (newParentId in descendants) return false
+            if (all.none { it.id == newParentId }) return false
+        }
+
+        updateCollection(target.copy(parentId = newParentId))
+        return true
+    }
+
     fun removeBooksFromAllCollections(bookIds: Set<String>) {
         val updated = _collections.value.map { collection ->
             collection.copy(bookIds = collection.bookIds.filter { it !in bookIds })
@@ -67,14 +141,74 @@ object CollectionRepository {
     }
 
     /**
-     * Updates the order of collections as defined by [newOrder].
-     * Any collections not present in [newOrder] will be appended at the end.
+     * Reorders siblings under [parentId]. Other collections keep relative order.
      */
-    fun updateCollectionOrder(newOrder: List<Collection>) {
-        val newOrderIds = newOrder.map { it.id }.toSet()
-        val remaining = _collections.value.filter { it.id !in newOrderIds }
-        _collections.value = newOrder + remaining
+    fun updateSiblingOrder(parentId: String?, newOrder: List<Collection>) {
+        if (newOrder.isEmpty()) return
+        val siblingIds = newOrder.map { it.id }.toSet()
+        val all = _collections.value
+        val result = mutableListOf<Collection>()
+        var inserted = false
+        for (collection in all) {
+            if (collection.parentId == parentId && collection.id in siblingIds) {
+                if (!inserted) {
+                    result.addAll(newOrder.map { it.copy(parentId = parentId) })
+                    inserted = true
+                }
+            } else {
+                result.add(collection)
+            }
+        }
+        if (!inserted) {
+            result.addAll(newOrder.map { it.copy(parentId = parentId) })
+        }
+        _collections.value = result
         persist()
+    }
+
+    /** Legacy full-list reorder used by root library when all items are roots. */
+    fun updateCollectionOrder(newOrder: List<Collection>) {
+        updateSiblingOrder(parentId = null, newOrder = newOrder)
+    }
+
+    fun updateBookOrder(collectionId: String, bookIds: List<String>) {
+        val existing = getCollectionById(collectionId) ?: return
+        updateCollection(existing.copy(bookIds = bookIds))
+    }
+
+    /**
+     * Moves [bookIds] from [fromCollectionId] into [toCollectionId],
+     * appending them (deduped) at the end of the destination.
+     */
+    fun moveBooks(
+        bookIds: Set<String>,
+        fromCollectionId: String,
+        toCollectionId: String
+    ) {
+        if (bookIds.isEmpty() || fromCollectionId == toCollectionId) return
+        _collections.value = _collections.value.map { collection ->
+            when (collection.id) {
+                fromCollectionId -> collection.copy(
+                    bookIds = collection.bookIds.filter { it !in bookIds }
+                )
+                toCollectionId -> {
+                    val merged = collection.bookIds.toMutableList()
+                    bookIds.forEach { id ->
+                        if (id !in merged) merged.add(id)
+                    }
+                    collection.copy(bookIds = merged)
+                }
+                else -> collection
+            }
+        }
+        persist()
+    }
+
+    fun removeBooksFromCollection(collectionId: String, bookIds: Set<String>) {
+        val existing = getCollectionById(collectionId) ?: return
+        updateCollection(
+            existing.copy(bookIds = existing.bookIds.filter { it !in bookIds })
+        )
     }
 
     private fun persist() {

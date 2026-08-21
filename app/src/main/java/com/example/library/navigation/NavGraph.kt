@@ -134,7 +134,10 @@ fun NavGraph(
                         navController.navigate(Screen.CollectionDetail.createRoute(collectionId))
                     },
                     onCreateCollectionClick = {
-                        navController.navigate(Screen.CreateCollection.route)
+                        navController.navigate(Screen.CreateCollection.createRoute())
+                    },
+                    onEditCollectionClick = { collectionId ->
+                        navController.navigate(Screen.CreateCollection.createRoute(collectionId = collectionId))
                     }
                 )
             }
@@ -203,11 +206,35 @@ fun NavGraph(
                     onBookClick = { bookId, origin ->
                         navController.navigate(Screen.BookDetail.createRoute(bookId, origin))
                     },
+                    onCollectionClick = { childId ->
+                        navController.navigate(Screen.CollectionDetail.createRoute(childId))
+                    },
+                    onBreadcrumbClick = { targetId ->
+                        if (targetId == null) {
+                            navController.popBackStack(Screen.Library.route, inclusive = false)
+                        } else {
+                            // Pop until we reach the target, or navigate if not on stack.
+                            val popped = navController.popBackStack(
+                                Screen.CollectionDetail.createRoute(targetId),
+                                inclusive = false
+                            )
+                            if (!popped) {
+                                navController.navigate(Screen.CollectionDetail.createRoute(targetId)) {
+                                    popUpTo(Screen.Library.route) { inclusive = false }
+                                }
+                            }
+                        }
+                    },
                     onAddBooksClick = {
-                        navController.navigate(Screen.CreateCollection.createRoute(collectionId))
+                        navController.navigate(Screen.CreateCollection.createRoute(collectionId = collectionId))
+                    },
+                    onCreateSubcollectionClick = {
+                        navController.navigate(
+                            Screen.CreateCollection.createRoute(parentId = collectionId)
+                        )
                     },
                     onEditClick = {
-                        navController.navigate(Screen.CreateCollection.createRoute(collectionId))
+                        navController.navigate(Screen.CreateCollection.createRoute(collectionId = collectionId))
                     },
                     onBackClick = { navController.popBackStack() }
                 )
@@ -219,12 +246,19 @@ fun NavGraph(
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
+                    },
+                    navArgument("parentId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
                     }
                 )
             ) { backStackEntry ->
                 val collectionId = backStackEntry.arguments?.getString("collectionId")
+                val parentId = backStackEntry.arguments?.getString("parentId")
                 CreateCollectionScreen(
                     collectionId = collectionId,
+                    parentId = parentId,
                     onSave = { navController.popBackStack() },
                     onCancel = { navController.popBackStack() }
                 )

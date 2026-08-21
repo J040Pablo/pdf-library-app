@@ -1,7 +1,5 @@
 package com.example.library.screens.library
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -11,7 +9,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.library.R
-import com.example.library.model.Collection
 import com.example.library.ui.components.CollectionCard
 import com.example.library.viewmodel.CollectionViewModel
 
@@ -44,7 +40,6 @@ import androidx.compose.ui.zIndex
 import com.example.library.screens.home.DragState
 import com.example.library.ui.components.reorderableItemGesture
 import kotlin.math.roundToInt
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun SharedTransitionScope.LibraryScreen(
@@ -53,24 +48,22 @@ fun SharedTransitionScope.LibraryScreen(
     onBookClick: (String, String) -> Unit = { _, _ -> },
     onCollectionClick: (String) -> Unit = {},
     onCreateCollectionClick: () -> Unit = {},
+    onEditCollectionClick: (String) -> Unit = {},
     paddingValues: PaddingValues = PaddingValues(0.dp),
     viewModel: CollectionViewModel = viewModel()
 ) {
     val collections by viewModel.collections.collectAsState()
-    val allBooks by viewModel.allBooks.collectAsState()
+    val rootCollections = remember(collections) { collections.filter { it.parentId == null } }
+    val childCountByParent = remember(collections) {
+        collections.groupingBy { it.parentId }.eachCount()
+    }
 
-    var localCollections by remember(collections) { mutableStateOf(collections) }
+    var localCollections by remember(rootCollections) { mutableStateOf(rootCollections) }
     var collectionDragState by remember { mutableStateOf<DragState?>(null) }
     var dragReadyCollectionId by remember { mutableStateOf<String?>(null) }
 
     val density = LocalDensity.current
     var selectedCollectionIds by remember { mutableStateOf(setOf<String>()) }
-
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        // Hook for PDF import — delegates to BookRepository in a real impl
-    }
 
     Scaffold(
         contentWindowInsets = WindowInsets.systemBars,
@@ -90,16 +83,16 @@ fun SharedTransitionScope.LibraryScreen(
                     },
                     actions = {
                         if (selectedCollectionIds.size == 1) {
-                            IconButton(onClick = { 
+                            IconButton(onClick = {
                                 val id = selectedCollectionIds.first()
                                 selectedCollectionIds = emptySet()
-                                onCreateCollectionClick() // Route to Edit if needed
+                                onEditCollectionClick(id)
                             }) {
                                 Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
                             }
                         }
                         IconButton(onClick = {
-                            selectedCollectionIds.forEach { viewModel.removeCollection(it) }
+                            viewModel.removeCollections(selectedCollectionIds)
                             selectedCollectionIds = emptySet()
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
@@ -165,7 +158,7 @@ fun SharedTransitionScope.LibraryScreen(
                 .background(MaterialTheme.colorScheme.surface)
         ) {
             AnimatedContent(
-                targetState = collections.isEmpty(),
+                targetState = rootCollections.isEmpty(),
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "LibraryContent"
             ) { isEmpty ->
@@ -191,6 +184,7 @@ fun SharedTransitionScope.LibraryScreen(
                             CollectionCard(
                                 collection = collection,
                                 books = books,
+                                childCollectionCount = childCountByParent[collection.id] ?: 0,
                                 isSelected = isSelected,
                                 onClick = null,
                                 modifier = Modifier
@@ -201,7 +195,11 @@ fun SharedTransitionScope.LibraryScreen(
                                         isSelectedModeActive = selectedCollectionIds.isNotEmpty(),
                                         onTap = {
                                             if (selectedCollectionIds.isNotEmpty()) {
-                                                selectedCollectionIds = if (isSelected) selectedCollectionIds - collection.id else selectedCollectionIds + collection.id
+                                                selectedCollectionIds = if (isSelected) {
+                                                    selectedCollectionIds - collection.id
+                                                } else {
+                                                    selectedCollectionIds + collection.id
+                                                }
                                             } else {
                                                 onCollectionClick(collection.id)
                                             }
@@ -210,7 +208,7 @@ fun SharedTransitionScope.LibraryScreen(
                                             selectedCollectionIds = selectedCollectionIds + collection.id
                                         },
                                         onDragReady = { id: String ->
-                                            dragReadyCollectionId = if (id.isNotEmpty()) id else null
+                                            dragReadyCollectionId = id.ifEmpty { null }
                                         },
                                         onDragStart = { id: String ->
                                             val initIdx = localCollections.indexOfFirst { it.id == id }
@@ -230,7 +228,8 @@ fun SharedTransitionScope.LibraryScreen(
                                             val itemStepY = with(density) { (100.dp + 8.dp).toPx() }
 
                                             val indexDelta = (newPointerOffset.y / itemStepY).roundToInt()
-                                            val targetIndex = (state.initialIndex + indexDelta).coerceIn(0, localCollections.lastIndex)
+                                            val targetIndex = (state.initialIndex + indexDelta)
+                                                .coerceIn(0, localCollections.lastIndex)
 
                                             if (targetIndex != state.currentIndex) {
                                                 val updated = localCollections.toMutableList()
@@ -249,7 +248,7 @@ fun SharedTransitionScope.LibraryScreen(
                                         onDragEnd = {
                                             collectionDragState = null
                                             dragReadyCollectionId = null
-                                            viewModel.updateCollectionOrder(localCollections)
+                                            viewModel.updateSiblingOrder(null, localCollections)
                                         }
                                     )
                                     .graphicsLayer {

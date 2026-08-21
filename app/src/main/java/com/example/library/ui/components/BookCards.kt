@@ -349,8 +349,8 @@ fun WavyProgressBar(
 @Composable
 fun LibraryBookItem(
     book: Book,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
+    onLongClick: () -> Unit = {},
     isSelected: Boolean = false,
     modifier: Modifier = Modifier,
     coverModifier: Modifier = Modifier
@@ -360,11 +360,15 @@ fun LibraryBookItem(
     else
         MaterialTheme.colorScheme.surface
 
+    val clickModifier = if (onClick != null) {
+        Modifier.clickable(onClick = onClick, onLongClick = onLongClick)
+    } else Modifier
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.Medium, vertical = Spacing.Small)
-            .clickable(onClick = onClick, onLongClick = onLongClick)
+            .then(clickModifier)
             .then(
                 if (isSelected) Modifier.border(
                     2.dp,
