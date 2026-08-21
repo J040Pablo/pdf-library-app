@@ -29,10 +29,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.library.R
 import com.example.library.ui.components.TopRatedBookCard
 import com.example.library.viewmodel.BookViewModel
 
@@ -101,7 +103,7 @@ fun SharedTransitionScope.SearchScreen(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+                        contentDescription = stringResource(R.string.back)
                     )
                 }
 
@@ -110,7 +112,7 @@ fun SharedTransitionScope.SearchScreen(
                     onValueChange = { viewModel.onSearchQueryChanged(it) },
                     placeholder = {
                         Text(
-                            text = "Pesquisar livros por título ou autor...",
+                            text = stringResource(R.string.search_books_hint),
                             style = MaterialTheme.typography.bodyLarge
                         )
                     },
@@ -147,7 +149,7 @@ fun SharedTransitionScope.SearchScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Limpar busca"
+                            contentDescription = stringResource(R.string.clear_search)
                         )
                     }
                 }
@@ -170,7 +172,7 @@ fun SharedTransitionScope.SearchScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Pesquisas recentes",
+                            text = stringResource(R.string.recent_searches),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -214,7 +216,7 @@ fun SharedTransitionScope.SearchScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
-                                        contentDescription = "Remover do histórico",
+                                        contentDescription = stringResource(R.string.remove_from_history),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -237,7 +239,7 @@ fun SharedTransitionScope.SearchScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Limpar histórico",
+                                    text = stringResource(R.string.clear_history),
                                     color = MaterialTheme.colorScheme.error,
                                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                                 )
@@ -251,7 +253,7 @@ fun SharedTransitionScope.SearchScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Digite para pesquisar livros por título ou autor",
+                        text = stringResource(R.string.search_books_prompt),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -263,7 +265,7 @@ fun SharedTransitionScope.SearchScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Nenhum resultado encontrado para \"$searchQuery\"",
+                    text = stringResource(R.string.no_results_for, searchQuery),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

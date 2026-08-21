@@ -16,11 +16,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.library.R
 import com.example.library.model.Collection
 import com.example.library.ui.components.CollectionCard
 import com.example.library.viewmodel.CollectionViewModel
@@ -77,13 +79,13 @@ fun SharedTransitionScope.LibraryScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "${selectedCollectionIds.size} selected",
+                            text = stringResource(R.string.selected_count, selectedCollectionIds.size),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = { selectedCollectionIds = emptySet() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel))
                         }
                     },
                     actions = {
@@ -93,14 +95,14 @@ fun SharedTransitionScope.LibraryScreen(
                                 selectedCollectionIds = emptySet()
                                 onCreateCollectionClick() // Route to Edit if needed
                             }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
                             }
                         }
                         IconButton(onClick = {
                             selectedCollectionIds.forEach { viewModel.removeCollection(it) }
                             selectedCollectionIds = emptySet()
                         }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -114,7 +116,7 @@ fun SharedTransitionScope.LibraryScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            "Collections",
+                            stringResource(R.string.collections),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = (-0.5).sp
@@ -123,7 +125,11 @@ fun SharedTransitionScope.LibraryScreen(
                     },
                     actions = {
                         IconButton(onClick = onSearchClick) {
-                            Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(28.dp))
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = stringResource(R.string.search),
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
                         Box(
                             modifier = Modifier
@@ -136,7 +142,7 @@ fun SharedTransitionScope.LibraryScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
-                                contentDescription = "Nova Collection",
+                                contentDescription = stringResource(R.string.new_collection),
                                 tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(Dimens.NotificationIconSize)
                             )
@@ -304,13 +310,13 @@ fun EmptyCollectionsView(onCreateClick: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            "No collections yet",
+            stringResource(R.string.no_collections_yet),
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Create a collection to group your books together",
+            stringResource(R.string.no_collections_yet_subtitle),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -325,7 +331,7 @@ fun EmptyCollectionsView(onCreateClick: () -> Unit) {
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("New Collection", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.new_collection), style = MaterialTheme.typography.titleMedium)
         }
     }
 }

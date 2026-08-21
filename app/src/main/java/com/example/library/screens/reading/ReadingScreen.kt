@@ -57,6 +57,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.library.R
 import com.example.library.model.Book
 import com.example.library.model.Chapter
 import com.example.library.ui.theme.Spacing
@@ -122,14 +124,14 @@ fun ReadingScreen(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "Nenhum conteúdo disponível para este capítulo.",
+                    text = stringResource(R.string.no_chapter_content),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(Spacing.Medium))
                 Button(onClick = onBackClick) {
-                    Text("Voltar ao Livro")
+                    Text(stringResource(R.string.back_to_book))
                 }
             }
         }
@@ -360,7 +362,7 @@ fun ReadingScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
+                            contentDescription = stringResource(R.string.back),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -402,7 +404,7 @@ fun ReadingScreen(
                     ) {
                         Icon(
                             imageVector = if (uiState.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            contentDescription = "Salvar posição de leitura",
+                            contentDescription = stringResource(R.string.save_reading_position),
                             tint = if (uiState.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -415,7 +417,7 @@ fun ReadingScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ScreenRotation,
-                            contentDescription = "Rotacionar tela",
+                            contentDescription = stringResource(R.string.rotate_screen),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -495,18 +497,30 @@ fun ReadingScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = if (isFirstPage) "Capítulo Anterior" else "Página Anterior",
+                                contentDescription = if (isFirstPage) {
+                                    stringResource(R.string.previous_chapter)
+                                } else {
+                                    stringResource(R.string.previous_page)
+                                },
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (isFirstPage && hasPrevChapter) "Capítulo Ant." else "Anterior",
+                                text = if (isFirstPage && hasPrevChapter) {
+                                    stringResource(R.string.prev_chapter_short)
+                                } else {
+                                    stringResource(R.string.previous)
+                                },
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }
 
                         Text(
-                            text = "Página ${uiState.currentPage + 1} de ${uiState.totalPages}",
+                            text = stringResource(
+                                R.string.page_of,
+                                uiState.currentPage + 1,
+                                uiState.totalPages
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -527,13 +541,21 @@ fun ReadingScreen(
                             contentPadding = PaddingValues(horizontal = Spacing.Medium, vertical = 8.dp)
                         ) {
                             Text(
-                                text = if (isLastPage && hasNextChapter) "Próximo Cap." else "Próxima",
+                                text = if (isLastPage && hasNextChapter) {
+                                    stringResource(R.string.next_chapter_short)
+                                } else {
+                                    stringResource(R.string.next)
+                                },
                                 style = MaterialTheme.typography.labelMedium
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = if (isLastPage) "Próximo Capítulo" else "Próxima Página",
+                                contentDescription = if (isLastPage) {
+                                    stringResource(R.string.next_chapter)
+                                } else {
+                                    stringResource(R.string.next_page)
+                                },
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -553,7 +575,7 @@ fun ReadingScreen(
                         .navigationBarsPadding()
                 ) {
                     Text(
-                        text = "Opções da Página ${uiState.currentPage + 1}",
+                        text = stringResource(R.string.page_options, uiState.currentPage + 1),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -561,6 +583,8 @@ fun ReadingScreen(
                     Surface(
                         onClick = {
                             showDownloadSheet = false
+                            val savedMsg = context.getString(R.string.page_saved_gallery)
+                            val errorMsg = context.getString(R.string.error_saving_page)
                             coroutineScope.launch(Dispatchers.IO) {
                                 val bmp = generatePageBitmap(context, book, chapter, uiState.currentPage)
                                 if (bmp != null) {
@@ -573,14 +597,14 @@ fun ReadingScreen(
                                     )
                                     withContext(Dispatchers.Main) {
                                         if (success) {
-                                            Toast.makeText(context, "Página salva na galeria", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, savedMsg, Toast.LENGTH_SHORT).show()
                                             coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("Página salva na galeria")
+                                                snackbarHostState.showSnackbar(savedMsg)
                                             }
                                         } else {
-                                            Toast.makeText(context, "Erro ao salvar página", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                                             coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("Erro ao salvar página")
+                                                snackbarHostState.showSnackbar(errorMsg)
                                             }
                                         }
                                     }
@@ -598,17 +622,17 @@ fun ReadingScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Download,
-                                contentDescription = "Baixar página",
+                                contentDescription = stringResource(R.string.download_page),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(Spacing.Medium))
                             Column {
                                 Text(
-                                    text = "Baixar página",
+                                    text = stringResource(R.string.download_page),
                                     style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                                 )
                                 Text(
-                                    text = "Salvar imagem PNG na galeria",
+                                    text = stringResource(R.string.save_page_png),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -680,7 +704,11 @@ private fun PageContentView(
             ) {
                 Image(
                     bitmap = bitmap!!.asImageBitmap(),
-                    contentDescription = "Página ${pageIndex + 1} de ${chapter.title}",
+                    contentDescription = stringResource(
+                        R.string.page_of_chapter,
+                        pageIndex + 1,
+                        chapter.title
+                    ),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
@@ -728,7 +756,7 @@ private fun EbookPageTextContentView(
         ) {
             Column {
                 Text(
-                    text = "${chapter.title} • Pág. ${pageIndex + 1}",
+                    text = stringResource(R.string.chapter_page_label, chapter.title, pageIndex + 1),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
@@ -796,23 +824,23 @@ private fun generateSamplePageText(
     pageIndex: Int
 ): Triple<String, String, String> {
     val heading = when (pageIndex % 4) {
-        0 -> "1. Princípios Fundamentais de $chapterTitle"
-        1 -> "2. Padrões de Projeto e Arquitetura Limpa"
-        2 -> "3. Práticas Avançadas em Desenvolvimento"
-        else -> "4. Considerações de Desempenho e Manutenibilidade"
+        0 -> "1. Fundamental Principles of $chapterTitle"
+        1 -> "2. Design Patterns and Clean Architecture"
+        2 -> "3. Advanced Development Practices"
+        else -> "4. Performance and Maintainability Considerations"
     }
 
     val body1 = when (pageIndex % 4) {
-        0 -> "No livro \"$bookTitle\", a clareza e a simplicidade são pilares fundamentais. Escrever código legível não é apenas uma preferência estética, mas uma necessidade essencial para equipes modernas de desenvolvimento. Cada função e classe deve ter uma responsabilidade clara e bem definida."
-        1 -> "A aplicação de boas abstrações permite isolar a complexidade do sistema em componentes modulares. Quando tratamos da arquitetura de software, a separação de conceitos garante que alterações em uma camada não afetem indevidamente outras partes do sistema."
-        2 -> "O teste automatizado e a refatoração contínua trabalham lado a lado. Ao manter uma suíte confiável de testes unitários e de integração, os desenvolvedores ganham a confiança necessária para evoluir o código sem introduzir regressões indesejadas."
-        else -> "A otimização prematura é a raiz de muitos problemas no desenvolvimento de software. Primeiramente, torne o código correto e compreensível. Em seguida, meça o desempenho real com ferramentas apropriadas antes de aplicar técnicas complexas de otimização."
+        0 -> "In \"$bookTitle\", clarity and simplicity are foundational pillars. Writing readable code is not just an aesthetic preference, but an essential need for modern development teams. Every function and class should have a clear, well-defined responsibility."
+        1 -> "Applying good abstractions isolates system complexity into modular components. When dealing with software architecture, separating concerns ensures that changes in one layer do not unduly affect other parts of the system."
+        2 -> "Automated testing and continuous refactoring go hand in hand. By maintaining a reliable suite of unit and integration tests, developers gain the confidence needed to evolve the code without introducing unwanted regressions."
+        else -> "Premature optimization is the root of many problems in software development. First, make the code correct and understandable. Then measure real performance with appropriate tools before applying complex optimization techniques."
     }
 
     val body2 = when (pageIndex % 3) {
-        0 -> "Dominar esses conceitos exige prática constante e atenção aos detalhes. À medida que você avança na leitura de $chapterTitle, observe como as escolhas de design refletem diretamente na qualidade final do produto."
-        1 -> "Organizar a estrutura de arquivos e pacotes de forma intuitiva reduz drasticamente a carga cognitiva de novos membros na equipe, permitindo uma integração mais rápida e um fluxo de trabalho mais harmonioso."
-        else -> "Em resumo, a excelência técnica é uma jornada contínua. Pequenas melhorias diárias na base de código acumulam-se em um impacto significativo ao longo do ciclo de vida do projeto."
+        0 -> "Mastering these concepts requires constant practice and attention to detail. As you progress through $chapterTitle, notice how design choices directly reflect in the final quality of the product."
+        1 -> "Organizing file and package structure intuitively drastically reduces the cognitive load for new team members, enabling faster onboarding and a more harmonious workflow."
+        else -> "In summary, technical excellence is a continuous journey. Small daily improvements to the codebase accumulate into a significant impact over the project's lifecycle."
     }
 
     return Triple(heading, body1, body2)
@@ -880,7 +908,7 @@ private suspend fun generatePageBitmap(
                 textSize = 36f
             }
 
-            canvas.drawText("Página ${pageIndex + 1} • ${chapter.title}", 80f, 120f, metaPaint)
+            canvas.drawText("Page ${pageIndex + 1} • ${chapter.title}", 80f, 120f, metaPaint)
             val textTriple = generateSamplePageText(book.title, chapter.title, pageIndex)
             canvas.drawText(textTriple.first, 80f, 240f, titlePaint)
 
@@ -895,7 +923,7 @@ private suspend fun generatePageBitmap(
                 yPos += 64f
             }
 
-            canvas.drawText("${book.author} • Página ${pageIndex + 1}", 80f, height - 100f, metaPaint)
+            canvas.drawText("${book.author} • Page ${pageIndex + 1}", 80f, height - 100f, metaPaint)
             bmp
         }
     } catch (_: Exception) {
@@ -908,7 +936,7 @@ private fun sanitizeFileName(text: String): String {
         .replace(Regex("[/\\\\:*?\"<>|\\r\\n\\t]"), "_")
         .replace(Regex("\\s+"), "_")
         .take(30)
-        .ifBlank { "Documento" }
+        .ifBlank { "Document" }
 }
 
 /** Saves page PNG image into Android MediaStore Pictures/PDF Library directory. */
@@ -921,7 +949,7 @@ private fun saveBitmapToGallery(
 ): Boolean {
     val sanitizedBook = sanitizeFileName(bookTitle)
     val sanitizedChapter = sanitizeFileName(chapterTitle)
-    val fileName = "${sanitizedBook}_${sanitizedChapter}_Pagina_$pageNumber.png"
+    val fileName = "${sanitizedBook}_${sanitizedChapter}_Page_$pageNumber.png"
 
     val contentValues = ContentValues().apply {
         put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
@@ -1012,7 +1040,11 @@ fun ChapterTransitionCard(
                 Spacer(modifier = Modifier.height(Spacing.Large))
 
                 Text(
-                    text = if (isLastChapter) "Fim do Livro!" else "Capítulo ${chapterIndex + 1} concluído",
+                    text = if (isLastChapter) {
+                        stringResource(R.string.end_of_book)
+                    } else {
+                        stringResource(R.string.chapter_completed, chapterIndex + 1)
+                    },
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
@@ -1031,7 +1063,7 @@ fun ChapterTransitionCard(
 
                 if (!isLastChapter && nextChapter != null) {
                     Text(
-                        text = "PRÓXIMO CAPÍTULO",
+                        text = stringResource(R.string.next_chapter_label),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -1056,18 +1088,18 @@ fun ChapterTransitionCard(
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = "Entrar no Próximo Capítulo",
+                            text = stringResource(R.string.enter_next_chapter),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Spacer(modifier = Modifier.width(Spacing.Small))
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Próximo"
+                            contentDescription = stringResource(R.string.next)
                         )
                     }
                 } else {
                     Text(
-                        text = "Parabéns! Você concluiu a leitura de \"${book.title}\".",
+                        text = stringResource(R.string.finished_book, book.title),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -1084,7 +1116,7 @@ fun ChapterTransitionCard(
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = "Voltar aos Detalhes",
+                            text = stringResource(R.string.back_to_details),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }

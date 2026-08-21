@@ -3,6 +3,7 @@ package com.example.library.navigation
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -15,6 +16,7 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.navigation.NavBackStackEntry
 import androidx.compose.animation.AnimatedContentTransitionScope
+import com.example.library.R
 import com.example.library.screens.bookdetail.BookDetailScreen
 import com.example.library.screens.collectiondetail.CollectionDetailScreen
 import com.example.library.screens.createcollection.CreateCollectionScreen
@@ -156,7 +158,7 @@ fun NavGraph(
 
                 val books by BookRepository.books.collectAsState()
                 val book = books.firstOrNull { it.id == bookId }
-                    ?: Book(id = bookId, title = "Livro desconhecido", author = "")
+                    ?: Book(id = bookId, title = stringResource(R.string.unknown_book), author = "")
 
                 BookDetailScreen(
                     book = book,

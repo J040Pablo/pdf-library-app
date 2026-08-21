@@ -48,7 +48,15 @@ class ReadingViewModel : ViewModel() {
         val books = BookRepository.books.value
         val book = books.firstOrNull { it.id == bookId } ?: return
         val chapters = book.chapters.ifEmpty {
-            listOf(Chapter("1", "Capítulo 1", "${book.pageCount} páginas", 0, (book.pageCount - 1).coerceAtLeast(0)))
+            listOf(
+                Chapter(
+                    "1",
+                    "Chapter 1",
+                    "${book.pageCount} pages",
+                    0,
+                    (book.pageCount - 1).coerceAtLeast(0)
+                )
+            )
         }
 
         val chapterIdx = chapters.indexOfFirst { it.id == chapterId }.let { if (it >= 0) it else 0 }
@@ -245,7 +253,7 @@ class ReadingViewModel : ViewModel() {
         val updatedBook = book.copy(
             currentPage = globalPage,
             progress = progress,
-            lastReadDate = "Hoje",
+            lastReadDate = "Today",
             chapters = updatedChapters
         )
         _uiState.update {

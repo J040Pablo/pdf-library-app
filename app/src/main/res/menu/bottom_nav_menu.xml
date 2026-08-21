@@ -4,21 +4,21 @@
     <item
         android:id="@+id/homeFragment"
         android:icon="@android:drawable/ic_menu_view"
-        android:title="Home" />
+        android:title="@string/nav_home" />
 
     <item
         android:id="@+id/searchFragment"
         android:icon="@android:drawable/ic_menu_search"
-        android:title="Buscar" />
+        android:title="@string/nav_search" />
 
     <item
         android:id="@+id/profileFragment"
         android:icon="@android:drawable/ic_menu_myplaces"
-        android:title="Perfil" />
+        android:title="@string/nav_profile" />
 
     <item
         android:id="@+id/settingsFragment"
         android:icon="@android:drawable/ic_menu_manage"
-        android:title="Config" />
+        android:title="@string/nav_settings" />
 
 </menu>

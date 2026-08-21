@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.library.R
 import com.example.library.data.BookRepository
 import com.example.library.model.Book
 import com.example.library.model.Chapter
@@ -276,7 +278,7 @@ fun SharedTransitionScope.BookDetailScreen(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Voltar",
+                contentDescription = stringResource(R.string.back),
                 tint = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -295,7 +297,11 @@ fun SharedTransitionScope.BookDetailScreen(
             ) {
                 Icon(
                     imageVector = if (liveBook.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                    contentDescription = if (liveBook.isBookmarked) "Remover dos salvos" else "Salvar livro",
+                    contentDescription = if (liveBook.isBookmarked) {
+                        stringResource(R.string.remove_bookmark)
+                    } else {
+                        stringResource(R.string.save_book)
+                    },
                     tint = if (liveBook.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -305,7 +311,7 @@ fun SharedTransitionScope.BookDetailScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Editar Livro",
+                    contentDescription = stringResource(R.string.edit_book),
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -471,19 +477,24 @@ fun SharedTransitionScope.BookDetailScreen(
 
        // ---- COMPACT FLOATING READING ACTION PILL BUTTON ----
         val hasStartedReading = liveBook.progress > 0f || liveBook.currentPage > 0
-        val buttonText = if (hasStartedReading) "Continuar" else "Começar"
+        val buttonText = if (hasStartedReading) {
+            stringResource(R.string.continue_reading)
+        } else {
+            stringResource(R.string.start_reading)
+        }
+        val fallbackChapterTitle = stringResource(R.string.chapter_one)
 
-        val targetChapter = remember(liveBook) {
+        val targetChapter = remember(liveBook, fallbackChapterTitle) {
             if (hasStartedReading) {
                 liveBook.chapters.firstOrNull { ch ->
                     val start = ch.startPage
                     val end = ch.endPage ?: (liveBook.pageCount - 1).coerceAtLeast(start)
                     liveBook.currentPage in start..end
                 } ?: liveBook.chapters.firstOrNull()
-                    ?: Chapter("1", "Capítulo 1", "")
+                    ?: Chapter("1", fallbackChapterTitle, "")
             } else {
                 liveBook.chapters.firstOrNull()
-                    ?: Chapter("1", "Capítulo 1", "")
+                    ?: Chapter("1", fallbackChapterTitle, "")
             }
         }
 
@@ -587,7 +598,11 @@ fun ChapterItem(
             ) {
                 Icon(
                     imageVector = if (chapter.isRead) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                    contentDescription = if (chapter.isRead) "Marcar como não lido" else "Marcar como lido",
+                    contentDescription = if (chapter.isRead) {
+                        stringResource(R.string.mark_as_unread)
+                    } else {
+                        stringResource(R.string.mark_as_read)
+                    },
                     tint = if (chapter.isRead) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
             }
@@ -601,13 +616,13 @@ fun ChapterItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Capítulo ${chapter.id}",
+                        text = stringResource(R.string.chapter_number, chapter.id),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                     if (isCurrentReadingChapter) {
                         Text(
-                            text = "▶ Continuar da pág. ${savedPageInChapter + 1}",
+                            text = stringResource(R.string.continue_from_page, savedPageInChapter + 1),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -637,7 +652,11 @@ fun ChapterItem(
             ) {
                 Icon(
                     imageVector = if (chapter.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                    contentDescription = if (chapter.isBookmarked) "Remover dos salvos" else "Salvar capítulo",
+                    contentDescription = if (chapter.isBookmarked) {
+                        stringResource(R.string.remove_chapter_bookmark)
+                    } else {
+                        stringResource(R.string.save_chapter)
+                    },
                     tint = if (chapter.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
             }
@@ -664,11 +683,13 @@ fun EditBookDialog(
         }
     }
 
+    val coverLabel = stringResource(R.string.cover)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Editar Livro",
+                text = stringResource(R.string.edit_book),
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
@@ -689,12 +710,12 @@ fun EditBookDialog(
                     if (coverUrl != null) {
                         AsyncImage(
                             model = coverUrl,
-                            contentDescription = "Capa",
+                            contentDescription = coverLabel,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        BookCoverPlaceholder(title = title.ifEmpty { "Capa" })
+                        BookCoverPlaceholder(title = title.ifEmpty { coverLabel })
                     }
                 }
 
@@ -709,7 +730,7 @@ fun EditBookDialog(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Alterar Capa")
+                    Text(stringResource(R.string.change_cover))
                 }
 
                 Spacer(modifier = Modifier.height(Spacing.Medium))
@@ -720,11 +741,14 @@ fun EditBookDialog(
                         title = it
                         titleError = it.isBlank()
                     },
-                    label = { Text("Título do Livro") },
+                    label = { Text(stringResource(R.string.book_title_label)) },
                     isError = titleError,
                     supportingText = {
                         if (titleError) {
-                            Text("O título não pode ser vazio", color = MaterialTheme.colorScheme.error)
+                            Text(
+                                stringResource(R.string.title_cannot_be_empty),
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                     },
                     singleLine = true,
@@ -736,7 +760,7 @@ fun EditBookDialog(
                 OutlinedTextField(
                     value = author,
                     onValueChange = { author = it },
-                    label = { Text("Nome do Autor") },
+                    label = { Text(stringResource(R.string.author_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -757,12 +781,12 @@ fun EditBookDialog(
                     onSave(updated)
                 }
             ) {
-                Text("Salvar")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

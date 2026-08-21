@@ -18,12 +18,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.library.R
 import com.example.library.model.Book
 import com.example.library.model.User
 import com.example.library.viewmodel.ProfileViewModel
@@ -45,7 +47,7 @@ fun ProfileScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Dashboard", fontWeight = FontWeight.ExtraBold) },
+                title = { Text(stringResource(R.string.dashboard), fontWeight = FontWeight.ExtraBold) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -140,7 +142,7 @@ fun ProfileHeader(user: User) {
         ) {
             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Editar Perfil")
+            Text(stringResource(R.string.edit_profile))
         }
     }
 }
@@ -148,12 +150,12 @@ fun ProfileHeader(user: User) {
 @Composable
 fun StatsSection(stats: com.example.library.viewmodel.ProfileStats) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text("Resumo de Leitura", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.reading_summary), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         
         Row(modifier = Modifier.fillMaxWidth()) {
             StatsCard(
-                label = "Livros",
+                label = stringResource(R.string.books),
                 value = stats.totalBooks.toString(),
                 icon = Icons.Default.LibraryBooks,
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -161,7 +163,7 @@ fun StatsSection(stats: com.example.library.viewmodel.ProfileStats) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             StatsCard(
-                label = "Concluídos",
+                label = stringResource(R.string.finished),
                 value = stats.finishedBooks.toString(),
                 icon = Icons.Default.CheckCircle,
                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -171,7 +173,7 @@ fun StatsSection(stats: com.example.library.viewmodel.ProfileStats) {
         Spacer(modifier = Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             StatsCard(
-                label = "Páginas",
+                label = stringResource(R.string.pages),
                 value = stats.totalPagesRead.toString(),
                 icon = Icons.Default.MenuBook,
                 color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -179,7 +181,7 @@ fun StatsSection(stats: com.example.library.viewmodel.ProfileStats) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             StatsCard(
-                label = "Horas",
+                label = stringResource(R.string.hours),
                 value = "${stats.totalHours}h",
                 icon = Icons.Default.AccessTime,
                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -208,7 +210,7 @@ fun StatsCard(label: String, value: String, icon: ImageVector, color: Color, mod
 @Composable
 fun RecentActivitySection(book: Book) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text("Atividade Recente", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.recent_activity), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         
         Card(
@@ -231,7 +233,11 @@ fun RecentActivitySection(book: Book) {
                 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(book.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("Lido ${book.lastReadDate}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        stringResource(R.string.read_on, book.lastReadDate ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = book.progress,
@@ -246,7 +252,7 @@ fun RecentActivitySection(book: Book) {
 @Composable
 fun GoalsSection(user: User, stats: com.example.library.viewmodel.ProfileStats) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text("Suas Metas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.your_goals), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         
         Card(
@@ -257,19 +263,19 @@ fun GoalsSection(user: User, stats: com.example.library.viewmodel.ProfileStats) 
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 GoalItem(
-                    title = "Meta Anual",
+                    title = stringResource(R.string.yearly_goal),
                     current = stats.finishedBooks,
                     target = user.annualGoal,
-                    unit = "livros"
+                    unit = stringResource(R.string.books_unit)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider(alpha = 0.5f)
                 Spacer(modifier = Modifier.height(16.dp))
                 GoalItem(
-                    title = "Meta Mensal",
+                    title = stringResource(R.string.monthly_goal),
                     current = 2, // Example value for monthly
                     target = user.monthlyGoal,
-                    unit = "livros"
+                    unit = stringResource(R.string.books_unit)
                 )
             }
         }
@@ -298,22 +304,34 @@ fun SettingsSection(themeViewModel: ThemeViewModel) {
     val themePreference by themeViewModel.themePreference.collectAsState()
 
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text("Configurações", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.settings), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
         
         SettingItem(
             icon = Icons.Outlined.DarkMode,
-            title = "Tema Escuro",
-            subtitle = "Alternar entre modo claro e escuro",
+            title = stringResource(R.string.dark_theme),
+            subtitle = stringResource(R.string.dark_theme_subtitle),
             hasSwitch = true,
             checked = themePreference == ThemePreference.DARK,
             onCheckedChange = { isChecked ->
                 themeViewModel.setTheme(if (isChecked) ThemePreference.DARK else ThemePreference.LIGHT)
             }
         )
-        SettingItem(Icons.Outlined.Notifications, "Notificações", "Alertas e lembretes de leitura")
-        SettingItem(Icons.Outlined.CloudUpload, "Backup", "Sincronizar dados na nuvem")
-        SettingItem(Icons.Outlined.Info, "Sobre o aplicativo", "Versão e desenvolvedores")
+        SettingItem(
+            Icons.Outlined.Notifications,
+            stringResource(R.string.notifications_setting),
+            stringResource(R.string.notifications_subtitle)
+        )
+        SettingItem(
+            Icons.Outlined.CloudUpload,
+            stringResource(R.string.backup),
+            stringResource(R.string.backup_subtitle)
+        )
+        SettingItem(
+            Icons.Outlined.Info,
+            stringResource(R.string.about_app),
+            stringResource(R.string.about_app_subtitle)
+        )
     }
 }
 
@@ -365,14 +383,14 @@ fun EmptyProfileState(padding: PaddingValues) {
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(
-            "Comece sua jornada de leitura",
+            "Start your reading journey",
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Adicione seu primeiro livro para ver suas estatísticas aqui.",
+            stringResource(R.string.empty_profile_message),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -382,7 +400,7 @@ fun EmptyProfileState(padding: PaddingValues) {
             onClick = { /* TODO: Navigate to Library or Add */ },
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Adicionar Livro")
+            Text(stringResource(R.string.add_book))
         }
     }
 }

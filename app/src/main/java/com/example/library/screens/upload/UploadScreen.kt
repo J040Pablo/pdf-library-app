@@ -16,10 +16,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.library.R
 import com.example.library.ui.components.ReadingIllustration
 import com.example.library.viewmodel.UploadState
 import com.example.library.viewmodel.UploadViewModel
@@ -80,7 +82,7 @@ fun EmptyStateView(onAddClick: () -> Unit) {
         ReadingIllustration(modifier = Modifier.padding(bottom = 32.dp))
         
         Text(
-            text = "Adicione seu primeiro livro",
+            text = stringResource(R.string.add_first_book),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
@@ -89,7 +91,7 @@ fun EmptyStateView(onAddClick: () -> Unit) {
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Importe arquivos PDF para começar sua biblioteca digital",
+            text = stringResource(R.string.import_pdf_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -109,7 +111,7 @@ fun EmptyStateView(onAddClick: () -> Unit) {
         ) {
             Icon(Icons.Default.LibraryAdd, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Adicionar Livro")
+            Text(stringResource(R.string.add_book))
         }
     }
 }
@@ -122,7 +124,7 @@ fun LoadingView() {
     ) {
         CircularProgressIndicator(modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Importando PDF...", style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.importing_pdf), style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -134,19 +136,19 @@ fun SuccessView(fileName: String, onBack: () -> Unit) {
         modifier = Modifier.padding(24.dp)
     ) {
         Text(
-            text = "Parabéns!",
+            text = stringResource(R.string.congratulations),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = "Livro '$fileName' adicionado com sucesso.",
+            text = stringResource(R.string.book_added_success, fileName),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyLarge
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = onBack) {
-            Text("Voltar")
+            Text(stringResource(R.string.back))
         }
     }
 }
@@ -159,7 +161,7 @@ fun ErrorView(message: String, onTryAgain: () -> Unit) {
         modifier = Modifier.padding(24.dp)
     ) {
         Text(
-            text = "Ops!",
+            text = stringResource(R.string.oops),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.error
@@ -171,7 +173,7 @@ fun ErrorView(message: String, onTryAgain: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = onTryAgain) {
-            Text("Tentar Novamente")
+            Text(stringResource(R.string.try_again))
         }
     }
 }

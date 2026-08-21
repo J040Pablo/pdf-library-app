@@ -28,12 +28,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.library.R
 import com.example.library.ui.components.RecentBookCard
 import com.example.library.ui.components.TopRatedBookCard
 import com.example.library.ui.components.reorderableItemGesture
@@ -125,21 +127,19 @@ fun SharedTransitionScope.HomeScreen(
     // ── Delete confirmation dialog ─────────────────────────────────────────────
     if (showDeleteConfirmation) {
         val count = selectedBookIds.size
+        val fallbackTitle = stringResource(R.string.this_book)
         val title = if (count == 1) {
-            val bookTitle = recentBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
-                ?: topRatedBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
-                ?: "este livro"
-            "Excluir livro?"
+            stringResource(R.string.delete_book_title)
         } else {
-            "Excluir livros?"
+            stringResource(R.string.delete_books_title)
         }
         val message = if (count == 1) {
             val bookTitle = recentBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
                 ?: topRatedBooks.firstOrNull { it.id == selectedBookIds.first() }?.title
-                ?: "este livro"
-            "Tem certeza que deseja excluir \"$bookTitle\"? Essa ação não poderá ser desfeita."
+                ?: fallbackTitle
+            stringResource(R.string.delete_book_confirmation, bookTitle)
         } else {
-            "Você está prestes a excluir $count livros. Essa ação não poderá ser desfeita."
+            stringResource(R.string.delete_books_confirmation, count)
         }
 
         AlertDialog(
@@ -155,7 +155,7 @@ fun SharedTransitionScope.HomeScreen(
                     }
                 ) {
                     Text(
-                        "Excluir",
+                        stringResource(R.string.delete),
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold
                     )
@@ -163,7 +163,7 @@ fun SharedTransitionScope.HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmation = false }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -177,13 +177,13 @@ fun SharedTransitionScope.HomeScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "${selectedBookIds.size} selecionado${if (selectedBookIds.size == 1) "" else "s"}",
+                            text = stringResource(R.string.selected_count, selectedBookIds.size),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = { selectedBookIds = emptySet() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancelar seleção")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel_selection))
                         }
                     },
                     actions = {
@@ -194,12 +194,12 @@ fun SharedTransitionScope.HomeScreen(
                                 selectedBookIds = emptySet()
                                 onEditBookClick(id)
                             }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Editar")
+                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
                             }
                         }
                         // Delete — always available in selection mode
                         IconButton(onClick = { showDeleteConfirmation = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Excluir")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -212,7 +212,7 @@ fun SharedTransitionScope.HomeScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "App",
+                            text = stringResource(R.string.app_name),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
@@ -228,7 +228,7 @@ fun SharedTransitionScope.HomeScreen(
                         IconButton(onClick = { /* TODO */ }) {
                             Icon(
                                 imageVector = Icons.Default.Menu,
-                                contentDescription = "Menu"
+                                contentDescription = stringResource(R.string.menu)
                             )
                         }
                     },
@@ -236,7 +236,7 @@ fun SharedTransitionScope.HomeScreen(
                         IconButton(onClick = onSearchClick) {
                             Icon(
                                 imageVector = Icons.Default.Search,
-                                contentDescription = "Search"
+                                contentDescription = stringResource(R.string.search)
                             )
                         }
 
@@ -252,7 +252,7 @@ fun SharedTransitionScope.HomeScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Notifications,
-                                contentDescription = "Notifications",
+                                contentDescription = stringResource(R.string.notifications),
                                 tint = Color(0xFFF8F5FF),
                                 modifier = Modifier.size(Dimens.NotificationIconSize)
                             )
@@ -313,7 +313,7 @@ fun SharedTransitionScope.HomeScreen(
                     Spacer(modifier = Modifier.height(Spacing.XXLarge))
 
                     Text(
-                        text = "Você ainda não possui livros",
+                        text = stringResource(R.string.no_books_yet),
                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onBackground,
                         textAlign = TextAlign.Center
@@ -322,7 +322,7 @@ fun SharedTransitionScope.HomeScreen(
                     Spacer(modifier = Modifier.height(Spacing.Medium))
 
                     Text(
-                        text = "Importe arquivos PDF usando a aba Upload para começar a sua leitura.",
+                        text = stringResource(R.string.no_books_yet_subtitle),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -345,7 +345,7 @@ fun SharedTransitionScope.HomeScreen(
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = "Recents",
+                        text = stringResource(R.string.recent),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier.padding(top = Spacing.Large + 14.dp, bottom = Spacing.Small),
@@ -458,7 +458,7 @@ fun SharedTransitionScope.HomeScreen(
 
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = "Top Rated",
+                        text = stringResource(R.string.top_rated),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier.padding(top = Spacing.Large, bottom = Spacing.Small),
@@ -600,14 +600,14 @@ fun SharedTransitionScope.HomeScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Notifications",
+                    text = stringResource(R.string.notifications),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(Spacing.Large))
                 Text(
-                    text = "Nenhuma notificação.",
+                    text = stringResource(R.string.no_notifications),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

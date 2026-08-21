@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.library.R
 import com.example.library.data.BookRepository
 import com.example.library.data.PdfImporter
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +20,7 @@ sealed class UploadState {
 }
 
 /**
- * Drives the "Adicionar Livro" (Add Book) screen.
+ * Drives the "Add Book" screen.
  *
  * Uses [AndroidViewModel] to obtain a [Context] for file I/O without leaking an
  * Activity reference. The actual heavy lifting is delegated to [PdfImporter].
@@ -37,7 +38,9 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun onFileSelected(uri: Uri?, fileName: String?) {
         if (uri == null || fileName == null || !fileName.lowercase().endsWith(".pdf")) {
-            _uiState.value = UploadState.Error("Arquivo inválido. Selecione um PDF.")
+            _uiState.value = UploadState.Error(
+                getApplication<Application>().getString(R.string.invalid_pdf_file)
+            )
             return
         }
 

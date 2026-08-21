@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.combinedClickable
 import coil.compose.AsyncImage
+import com.example.library.R
 import com.example.library.model.Book
 import com.example.library.ui.theme.*
 import kotlin.math.sin
@@ -448,13 +450,16 @@ fun LibraryBookItem(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${(book.progress * 100).toInt()}% concluído",
+                            text = stringResource(
+                                R.string.percent_complete,
+                                (book.progress * 100).toInt()
+                            ),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "${book.pageCount} pág.",
+                            text = stringResource(R.string.pages_abbrev, book.pageCount),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -475,7 +480,7 @@ fun LibraryBookItem(
 
                 book.lastReadDate?.let {
                     Text(
-                        text = "Última leitura $it",
+                        text = stringResource(R.string.last_read, it),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline,
                         modifier = Modifier.padding(top = Spacing.Small)

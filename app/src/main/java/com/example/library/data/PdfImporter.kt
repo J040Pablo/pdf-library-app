@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import com.example.library.R
 import com.example.library.model.Book
 import com.example.library.model.Chapter
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -42,7 +43,7 @@ object PdfImporter {
 
     /**
      * Imports a PDF from [uri] and returns either the constructed [Book] or a
-     * user-readable Portuguese error message.
+     * user-readable error message.
      *
      * @param displayName File name as reported by the SAF cursor (may include ".pdf").
      */
@@ -75,11 +76,14 @@ object PdfImporter {
                     input.copyTo(output)
                 }
             } ?: return@withContext ImportResult.Err(
-                "Não foi possível ler o arquivo PDF selecionado."
+                context.getString(R.string.could_not_read_pdf)
             )
         } catch (e: IOException) {
             return@withContext ImportResult.Err(
-                "Falha ao copiar o arquivo: ${e.message ?: "erro de E/S"}."
+                context.getString(
+                    R.string.failed_to_copy_file,
+                    e.message ?: context.getString(R.string.io_error)
+                )
             )
         }
 
@@ -113,19 +117,19 @@ object PdfImporter {
             // Password-protected PDFs throw SecurityException from PdfRenderer.
             copiedFile.delete()
             return@withContext ImportResult.Err(
-                "Este PDF está protegido por senha e não pode ser importado."
+                context.getString(R.string.pdf_password_protected)
             )
         } catch (e: Exception) {
             // Corrupted or incompatible PDF.
             copiedFile.delete()
             return@withContext ImportResult.Err(
-                "Não foi possível importar o PDF. Arquivo corrompido ou inválido."
+                context.getString(R.string.pdf_import_failed)
             )
         }
 
         // Steps 5 & 6 — metadata + chapters via pdfbox-android.
         var title = displayName.removeSuffix(".pdf").removeSuffix(".PDF").trim()
-        var author = "Autor desconhecido"
+        var author = context.getString(R.string.unknown_author)
         var chapters: List<Chapter> = emptyList()
 
         try {
@@ -140,7 +144,7 @@ object PdfImporter {
                 // Chapters from outline
                 val outline = doc.documentCatalog?.documentOutline
                 if (outline != null) {
-                    chapters = collectOutlineItems(outline, doc, pageCount)
+                    chapters = collectOutlineItems(context, outline, doc, pageCount)
                 }
             }
         } catch (_: Exception) {
@@ -151,7 +155,7 @@ object PdfImporter {
 
         // Fallback chapter split if the PDF has no outline.
         if (chapters.isEmpty() && pageCount > 0) {
-            chapters = buildFallbackChapters(pageCount)
+            chapters = buildFallbackChapters(context, pageCount)
         }
 
         val book = Book(
@@ -173,6 +177,7 @@ object PdfImporter {
 
     /** Recursively walk the PDF outline and convert items to [Chapter]s. */
     private fun collectOutlineItems(
+        context: Context,
         node: PDOutlineNode,
         doc: PDDocument,
         pageCount: Int
@@ -181,13 +186,14 @@ object PdfImporter {
         var child = node.firstChild
         var index = 1
         while (child != null) {
-            val chapterTitle = child.title?.trim()?.takeIf { it.isNotEmpty() } ?: "Capítulo $index"
+            val chapterTitle = child.title?.trim()?.takeIf { it.isNotEmpty() }
+                ?: context.getString(R.string.chapter_fallback, index)
             val startPage = resolveDestinationPage(child.destination, doc) ?: 0
             result.add(
                 Chapter(
                     id = index.toString(),
                     title = chapterTitle,
-                    durationOrPages = "Pág. ${startPage + 1}",
+                    durationOrPages = context.getString(R.string.page_start, startPage + 1),
                     startPage = startPage
                 )
             )
@@ -219,13 +225,13 @@ object PdfImporter {
     }
 
     /** Naive chapter split for PDFs with no bookmark outline. */
-    private fun buildFallbackChapters(pageCount: Int): List<Chapter> {
+    private fun buildFallbackChapters(context: Context, pageCount: Int): List<Chapter> {
         if (pageCount <= FALLBACK_PAGES_PER_CHAPTER) {
             return listOf(
                 Chapter(
                     id = "1",
-                    title = "Capítulo 1",
-                    durationOrPages = "$pageCount páginas",
+                    title = context.getString(R.string.chapter_one),
+                    durationOrPages = context.getString(R.string.pages_count, pageCount),
                     startPage = 0,
                     endPage = pageCount - 1
                 )
@@ -240,8 +246,8 @@ object PdfImporter {
             chapters.add(
                 Chapter(
                     id = id.toString(),
-                    title = "Capítulo $id",
-                    durationOrPages = "$pageSpan páginas",
+                    title = context.getString(R.string.chapter_fallback, id),
+                    durationOrPages = context.getString(R.string.pages_count, pageSpan),
                     startPage = page,
                     endPage = end
                 )

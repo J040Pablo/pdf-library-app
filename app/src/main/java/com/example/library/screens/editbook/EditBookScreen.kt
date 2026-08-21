@@ -11,11 +11,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.library.R
 import com.example.library.model.Book
 import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.Spacing
@@ -58,13 +60,16 @@ private fun EditBookContent(
             TopAppBar(
                 title = {
                     Text(
-                        "Edit Book",
+                        stringResource(R.string.edit_book),
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cancel")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cancel)
+                        )
                     }
                 },
                 actions = {
@@ -81,7 +86,7 @@ private fun EditBookContent(
                         enabled = title.isNotBlank()
                     ) {
                         Text(
-                            "Save",
+                            stringResource(R.string.save),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
@@ -104,7 +109,7 @@ private fun EditBookContent(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Title *") },
+                label = { Text(stringResource(R.string.book_title)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Dimens.CornerCard),
@@ -117,7 +122,7 @@ private fun EditBookContent(
             OutlinedTextField(
                 value = author,
                 onValueChange = { author = it },
-                label = { Text("Author") },
+                label = { Text(stringResource(R.string.author)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Dimens.CornerCard),
@@ -131,7 +136,7 @@ private fun EditBookContent(
 
             // Star rating selector
             Text(
-                text = "Rating",
+                text = stringResource(R.string.rating),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -151,7 +156,10 @@ private fun EditBookContent(
                         Icon(
                             imageVector = if (index < rating.toInt()) Icons.Default.Star
                                           else Icons.Default.StarBorder,
-                            contentDescription = "$starValue stars",
+                            contentDescription = stringResource(
+                                R.string.stars_content_description,
+                                starValue
+                            ),
                             tint = if (index < rating.toInt()) MaterialTheme.colorScheme.primary
                                    else MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(36.dp)
