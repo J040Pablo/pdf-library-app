@@ -1,6 +1,9 @@
 package com.example.library.screens.bookdetail
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -23,7 +26,9 @@ import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -52,9 +57,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.library.R
 import com.example.library.data.BookRepository
+import com.example.library.data.PdfExporter
 import com.example.library.model.Book
 import com.example.library.model.Chapter
 import com.example.library.ui.components.BookCoverPlaceholder
@@ -88,12 +95,83 @@ fun SharedTransitionScope.BookDetailScreen(
 ) {
     val books by BookRepository.books.collectAsState()
     val liveBook = remember(books, book.id) { books.firstOrNull { it.id == book.id } ?: book }
+    val context = LocalContext.current
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var showEditDialog by remember { mutableStateOf(false) }
+    var showExportMenu by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
+
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            isExporting = true
+            when (val result = PdfExporter.exportToUri(context, liveBook, uri)) {
+                is PdfExporter.ExportResult.Success -> {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.export_pdf_success_location)
+                    )
+                }
+                is PdfExporter.ExportResult.Error -> {
+                    snackbarHostState.showSnackbar(result.message)
+                }
+            }
+            isExporting = false
+        }
+    }
+
+    fun exportToDownloads() {
+        coroutineScope.launch {
+            isExporting = true
+            when (val result = PdfExporter.exportToDownloads(context, liveBook)) {
+                is PdfExporter.ExportResult.Success -> {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.export_pdf_success, result.displayName)
+                    )
+                }
+                is PdfExporter.ExportResult.Error -> {
+                    snackbarHostState.showSnackbar(result.message)
+                }
+            }
+            isExporting = false
+        }
+    }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            exportToDownloads()
+        } else {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.export_permission_denied)
+                )
+            }
+        }
+    }
+
+    fun requestExportToDownloads() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            exportToDownloads()
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            exportToDownloads()
+        } else {
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
 
     val expandedHeaderHeight = 390.dp
     val topBarHeight = 64.dp
@@ -283,7 +361,7 @@ fun SharedTransitionScope.BookDetailScreen(
             )
         }
 
-        // ---- Top End Action Buttons (Bookmark & Edit) ----
+        // ---- Top End Action Buttons (Export, Bookmark & Edit) ----
         Row(
             modifier = Modifier
                 .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
@@ -292,6 +370,51 @@ fun SharedTransitionScope.BookDetailScreen(
                 .alpha(1f - e),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Box {
+                IconButton(
+                    onClick = { showExportMenu = true },
+                    enabled = !isExporting
+                ) {
+                    if (isExporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = stringResource(R.string.export_pdf),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = showExportMenu,
+                    onDismissRequest = { showExportMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.export_to_downloads)) },
+                        onClick = {
+                            showExportMenu = false
+                            requestExportToDownloads()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Download, contentDescription = null)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.export_choose_location)) },
+                        onClick = {
+                            showExportMenu = false
+                            createDocumentLauncher.launch(PdfExporter.suggestedFileName(liveBook))
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null)
+                        }
+                    )
+                }
+            }
+
             IconButton(
                 onClick = { BookRepository.toggleBookmark(liveBook.id) }
             ) {
@@ -555,6 +678,14 @@ fun SharedTransitionScope.BookDetailScreen(
                 }
             )
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 160.dp)
+        )
     }
 }
 

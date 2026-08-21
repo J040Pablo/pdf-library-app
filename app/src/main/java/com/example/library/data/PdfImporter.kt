@@ -16,15 +16,18 @@ import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.security.MessageDigest
 import java.util.UUID
 
 /**
- * Stateless helper that converts a SAF [Uri] pointing to a PDF into a [Book].
+ * Stateless helper that converts a PDF into a [Book].
  *
- * All heavy I/O runs on [Dispatchers.IO] — call from a coroutine already on
- * the desired dispatcher, or wrap with [withContext] yourself.
+ * All heavy I/O runs on [Dispatchers.IO].
  */
 object PdfImporter {
 
@@ -34,60 +37,140 @@ object PdfImporter {
     /** Maximum pixel width of the generated cover thumbnail. */
     private const val THUMBNAIL_WIDTH_PX = 360
 
-    // -------------------------------------------------------------------------
-
     sealed class ImportResult {
         data class Ok(val book: Book) : ImportResult()
-        data class Err(val message: String) : ImportResult()
+        data class Duplicate(val existingTitle: String, val fileName: String) : ImportResult()
+        data class Err(val message: String, val fileName: String = "") : ImportResult()
     }
 
     /**
-     * Imports a PDF from [uri] and returns either the constructed [Book] or a
-     * user-readable error message.
+     * Imports a PDF from a SAF [uri].
      *
-     * @param displayName File name as reported by the SAF cursor (may include ".pdf").
+     * @param existingHashes SHA-256 hashes of books already in the library.
      */
     suspend fun import(
         context: Context,
         uri: Uri,
-        displayName: String
+        displayName: String,
+        existingHashes: Set<String> = emptySet()
     ): ImportResult = withContext(Dispatchers.IO) {
-        // Step 1 — take a persistable read permission so the grant survives
-        // process death and is readable on next launch.
         try {
             context.contentResolver.takePersistableUriPermission(
                 uri,
                 android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
         } catch (_: SecurityException) {
-            // Some providers don't support persistable grants (e.g. emulator
-            // file picker). Non-fatal: the file copy below is our real safety net.
+            // Some providers don't support persistable grants.
         }
 
         val uuid = UUID.randomUUID().toString()
-
-        // Step 2 — copy the PDF into internal storage so we're not dependent
-        // on the original content:// URI being available later.
         val booksDir = File(context.filesDir, "books").also { it.mkdirs() }
         val copiedFile = File(booksDir, "$uuid.pdf")
+
+        val contentHash: String
         try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
+            val input = context.contentResolver.openInputStream(uri)
+                ?: return@withContext ImportResult.Err(
+                    context.getString(R.string.could_not_read_pdf),
+                    displayName
+                )
+            input.use { stream ->
                 FileOutputStream(copiedFile).use { output ->
-                    input.copyTo(output)
+                    contentHash = copyAndHash(stream, output)
                 }
-            } ?: return@withContext ImportResult.Err(
-                context.getString(R.string.could_not_read_pdf)
-            )
+            }
         } catch (e: IOException) {
+            copiedFile.delete()
             return@withContext ImportResult.Err(
                 context.getString(
                     R.string.failed_to_copy_file,
                     e.message ?: context.getString(R.string.io_error)
-                )
+                ),
+                displayName
             )
         }
 
-        // Steps 3 & 4 — page count + cover thumbnail via PdfRenderer.
+        if (contentHash in existingHashes) {
+            copiedFile.delete()
+            val existing = BookRepository.books.value
+                .firstOrNull { it.contentHash == contentHash }
+            return@withContext ImportResult.Duplicate(
+                existingTitle = existing?.title
+                    ?: displayName.removeSuffixIgnoreCase(".pdf"),
+                fileName = displayName
+            )
+        }
+
+        finalizeImport(context, copiedFile, uuid, displayName, contentHash)
+    }
+
+    /**
+     * Imports a PDF already present as a local [file] (e.g. extracted from a ZIP).
+     *
+     * When [deleteSourceAfter] is true, [file] is removed after a successful copy
+     * into app storage (or immediately on duplicate/error if it lived in a temp dir).
+     */
+    suspend fun importFromFile(
+        context: Context,
+        file: File,
+        displayName: String,
+        existingHashes: Set<String> = emptySet(),
+        deleteSourceAfter: Boolean = false
+    ): ImportResult = withContext(Dispatchers.IO) {
+        if (!file.exists() || !file.isFile) {
+            return@withContext ImportResult.Err(
+                context.getString(R.string.could_not_read_pdf),
+                displayName
+            )
+        }
+
+        val uuid = UUID.randomUUID().toString()
+        val booksDir = File(context.filesDir, "books").also { it.mkdirs() }
+        val destFile = File(booksDir, "$uuid.pdf")
+
+        val contentHash: String
+        try {
+            FileInputStream(file).use { input ->
+                FileOutputStream(destFile).use { output ->
+                    contentHash = copyAndHash(input, output)
+                }
+            }
+        } catch (e: IOException) {
+            destFile.delete()
+            return@withContext ImportResult.Err(
+                context.getString(
+                    R.string.failed_to_copy_file,
+                    e.message ?: context.getString(R.string.io_error)
+                ),
+                displayName
+            )
+        } finally {
+            if (deleteSourceAfter) {
+                file.delete()
+            }
+        }
+
+        if (contentHash in existingHashes) {
+            destFile.delete()
+            val existing = BookRepository.books.value
+                .firstOrNull { it.contentHash == contentHash }
+            return@withContext ImportResult.Duplicate(
+                existingTitle = existing?.title
+                    ?: displayName.removeSuffixIgnoreCase(".pdf"),
+                fileName = displayName
+            )
+        }
+
+        finalizeImport(context, destFile, uuid, displayName, contentHash)
+    }
+
+    private fun finalizeImport(
+        context: Context,
+        copiedFile: File,
+        uuid: String,
+        displayName: String,
+        contentHash: String
+    ): ImportResult {
         var pageCount = 0
         var coverUrl: String? = null
         try {
@@ -100,7 +183,6 @@ object PdfImporter {
                         val thumbW = THUMBNAIL_WIDTH_PX
                         val thumbH = (page.height * scale).toInt().coerceAtLeast(1)
                         val bmp = Bitmap.createBitmap(thumbW, thumbH, Bitmap.Config.ARGB_8888)
-                        // Fill white background (PDF pages are transparent)
                         bmp.eraseColor(android.graphics.Color.WHITE)
                         page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         val coversDir = File(context.filesDir, "covers").also { it.mkdirs() }
@@ -113,47 +195,41 @@ object PdfImporter {
                     }
                 }
             }
-        } catch (e: SecurityException) {
-            // Password-protected PDFs throw SecurityException from PdfRenderer.
+        } catch (_: SecurityException) {
             copiedFile.delete()
-            return@withContext ImportResult.Err(
-                context.getString(R.string.pdf_password_protected)
+            return ImportResult.Err(
+                context.getString(R.string.pdf_password_protected),
+                displayName
             )
-        } catch (e: Exception) {
-            // Corrupted or incompatible PDF.
+        } catch (_: Exception) {
             copiedFile.delete()
-            return@withContext ImportResult.Err(
-                context.getString(R.string.pdf_import_failed)
+            return ImportResult.Err(
+                context.getString(R.string.pdf_import_failed),
+                displayName
             )
         }
 
-        // Steps 5 & 6 — metadata + chapters via pdfbox-android.
-        var title = displayName.removeSuffix(".pdf").removeSuffix(".PDF").trim()
+        var title = displayName.removeSuffixIgnoreCase(".pdf").trim()
         var author = context.getString(R.string.unknown_author)
         var chapters: List<Chapter> = emptyList()
 
         try {
             PDDocument.load(copiedFile).use { doc ->
-                // Metadata
                 val info = doc.documentInformation
                 val pdfTitle = info?.title?.trim()
                 val pdfAuthor = info?.author?.trim()
                 if (!pdfTitle.isNullOrEmpty()) title = pdfTitle
                 if (!pdfAuthor.isNullOrEmpty()) author = pdfAuthor
 
-                // Chapters from outline
                 val outline = doc.documentCatalog?.documentOutline
                 if (outline != null) {
                     chapters = collectOutlineItems(context, outline, doc, pageCount)
                 }
             }
         } catch (_: Exception) {
-            // pdfbox failed (rare for a file PdfRenderer already opened). Keep
-            // defaults extracted above and proceed — a book with unknown
-            // metadata is still importable.
+            // Soft-fail: keep filename title / unknown author / fallback chapters.
         }
 
-        // Fallback chapter split if the PDF has no outline.
         if (chapters.isEmpty() && pageCount > 0) {
             chapters = buildFallbackChapters(context, pageCount)
         }
@@ -166,16 +242,25 @@ object PdfImporter {
             pageCount = pageCount,
             currentPage = 0,
             progress = 0f,
-            chapters = chapters
+            chapters = chapters,
+            contentHash = contentHash
         )
-        ImportResult.Ok(book)
+        return ImportResult.Ok(book)
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
+    /** Copies [input] to [output] while computing a SHA-256 hex digest. */
+    fun copyAndHash(input: InputStream, output: OutputStream): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            output.write(buffer, 0, read)
+            digest.update(buffer, 0, read)
+        }
+        return digest.digest().joinToString("") { b -> "%02x".format(b) }
+    }
 
-    /** Recursively walk the PDF outline and convert items to [Chapter]s. */
     private fun collectOutlineItems(
         context: Context,
         node: PDOutlineNode,
@@ -200,14 +285,12 @@ object PdfImporter {
             index++
             child = child.nextSibling
         }
-        // Compute endPage retrospectively
         return result.mapIndexed { i, chapter ->
             val nextStart = result.getOrNull(i + 1)?.startPage
             chapter.copy(endPage = if (nextStart != null) nextStart - 1 else pageCount - 1)
         }
     }
 
-    /** Resolve a PDF destination (page-based or named) to a 0-indexed page number. */
     private fun resolveDestinationPage(dest: Any?, doc: PDDocument): Int? {
         val resolved = when (dest) {
             is PDPageDestination -> dest
@@ -224,7 +307,6 @@ object PdfImporter {
         }
     }
 
-    /** Naive chapter split for PDFs with no bookmark outline. */
     private fun buildFallbackChapters(context: Context, pageCount: Int): List<Chapter> {
         if (pageCount <= FALLBACK_PAGES_PER_CHAPTER) {
             return listOf(
@@ -256,5 +338,13 @@ object PdfImporter {
             id++
         }
         return chapters
+    }
+
+    private fun String.removeSuffixIgnoreCase(suffix: String): String {
+        return if (endsWith(suffix, ignoreCase = true)) {
+            dropLast(suffix.length)
+        } else {
+            this
+        }
     }
 }

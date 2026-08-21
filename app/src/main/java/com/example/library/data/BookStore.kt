@@ -103,6 +103,7 @@ fun Book.toJson(): JSONObject = JSONObject().apply {
     put("currentPage", currentPage)
     put("lastReadDate", lastReadDate ?: JSONObject.NULL)
     put("chapters", JSONArray().apply { chapters.forEach { put(it.toJson()) } })
+    put("contentHash", contentHash ?: JSONObject.NULL)
 }
 
 fun Chapter.toJson(): JSONObject = JSONObject().apply {
@@ -136,7 +137,8 @@ fun Book.Companion.fromJson(json: JSONObject): Book = Book(
     lastReadDate = json.optString("lastReadDate").takeIf { it.isNotEmpty() && it != "null" },
     chapters = json.optJSONArray("chapters")?.let { arr ->
         List(arr.length()) { i -> Chapter.fromJson(arr.getJSONObject(i)) }
-    } ?: emptyList()
+    } ?: emptyList(),
+    contentHash = json.optString("contentHash").takeIf { it.isNotEmpty() && it != "null" }
 )
 
 fun Chapter.Companion.fromJson(json: JSONObject): Chapter = Chapter(

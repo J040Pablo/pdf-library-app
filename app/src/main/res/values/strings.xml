@@ -124,16 +124,42 @@
 
     <!-- Upload / Import -->
     <string name="add_first_book">Add your first book</string>
-    <string name="import_pdf_subtitle">Import PDF files to start building your digital library</string>
+    <string name="import_pdf_subtitle">Import PDFs or a ZIP archive to build your digital library</string>
     <string name="add_book">Add Book</string>
+    <string name="add_pdfs">Add PDFs</string>
+    <string name="import_zip">Import ZIP</string>
     <string name="importing_pdf">Importing PDF…</string>
+    <string name="importing_zip">Importing ZIP…</string>
+    <string name="extracting_zip">Extracting ZIP archive…</string>
+    <string name="importing_progress">Importing %1$d of %2$d…</string>
+    <string name="import_complete_title">Import complete</string>
+    <string name="import_complete_summary">%1$d added · %2$d duplicates skipped · %3$d failed</string>
+    <string name="import_duplicate_detail">Already in library as \"%1$s\"</string>
+    <string name="done">Done</string>
     <string name="book_added_success">Book \'%1$s\' added successfully.</string>
     <string name="invalid_pdf_file">Invalid file. Please select a PDF.</string>
+    <string name="invalid_zip_file">Invalid file. Please select a ZIP archive.</string>
     <string name="could_not_read_pdf">Could not read the selected PDF file.</string>
     <string name="failed_to_copy_file">Failed to copy file: %1$s.</string>
     <string name="io_error">I/O error</string>
     <string name="pdf_password_protected">This PDF is password-protected and cannot be imported.</string>
     <string name="pdf_import_failed">Could not import the PDF. The file may be corrupted or invalid.</string>
+    <string name="zip_could_not_read">Could not read the selected ZIP file.</string>
+    <string name="zip_corrupted">This ZIP archive is corrupted or invalid.</string>
+    <string name="zip_extract_failed">Failed to extract the ZIP archive.</string>
+    <string name="zip_no_pdfs_found">No PDF files were found inside the ZIP archive.</string>
+
+    <!-- Export -->
+    <string name="export_pdf">Export PDF</string>
+    <string name="export_to_downloads">Save to Downloads</string>
+    <string name="export_choose_location">Choose location…</string>
+    <string name="export_pdf_success">Saved \"%1$s\" to Downloads</string>
+    <string name="export_pdf_success_location">PDF exported successfully</string>
+    <string name="export_pdf_missing">PDF file not found for this book.</string>
+    <string name="export_pdf_failed">Could not export the PDF.</string>
+    <string name="export_pdf_failed_detail">Could not export the PDF: %1$s.</string>
+    <string name="export_permission_denied">Storage permission is required to save to Downloads.</string>
+    <string name="exporting_pdf">Exporting PDF…</string>
 
     <!-- Search -->
     <string name="search_books_hint">Search books by title or author…</string>

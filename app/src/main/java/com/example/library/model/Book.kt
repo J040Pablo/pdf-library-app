@@ -11,7 +11,9 @@ data class Book(
     val pageCount: Int = 0,
     val currentPage: Int = 0,
     val lastReadDate: String? = null,
-    val chapters: List<Chapter> = emptyList()
+    val chapters: List<Chapter> = emptyList(),
+    /** SHA-256 of PDF bytes; used to skip duplicate imports. */
+    val contentHash: String? = null
 ) {
     companion object
 }
