@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.library.model.Book
+import com.example.library.model.BookFormat
 import com.example.library.model.Chapter
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
@@ -104,6 +105,7 @@ fun Book.toJson(): JSONObject = JSONObject().apply {
     put("lastReadDate", lastReadDate ?: JSONObject.NULL)
     put("chapters", JSONArray().apply { chapters.forEach { put(it.toJson()) } })
     put("contentHash", contentHash ?: JSONObject.NULL)
+    put("format", format.name)
 }
 
 fun Chapter.toJson(): JSONObject = JSONObject().apply {
@@ -139,7 +141,10 @@ fun Book.Companion.fromJson(json: JSONObject): Book = Book(
     chapters = json.optJSONArray("chapters")?.let { arr ->
         List(arr.length()) { i -> Chapter.fromJson(arr.getJSONObject(i)) }
     } ?: emptyList(),
-    contentHash = json.optString("contentHash").takeIf { it.isNotEmpty() && it != "null" }
+    contentHash = json.optString("contentHash").takeIf { it.isNotEmpty() && it != "null" },
+    format = runCatching {
+        BookFormat.valueOf(json.optString("format", BookFormat.PDF.name))
+    }.getOrDefault(BookFormat.PDF)
 )
 
 fun Chapter.Companion.fromJson(json: JSONObject): Chapter = Chapter(

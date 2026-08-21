@@ -13,23 +13,27 @@ import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 
 /**
- * Extracts PDF files from a ZIP archive into a temporary directory.
- * Nested folders are preserved in the walk; only `.pdf` entries are kept.
+ * Extracts PDF and CBR files from a ZIP archive into a temporary directory.
  */
 object ZipPdfImporter {
 
-    data class ExtractedPdf(val file: File, val displayName: String)
+    data class ExtractedBook(val file: File, val displayName: String)
 
     sealed class ExtractResult {
-        data class Ok(val pdfs: List<ExtractedPdf>, val workDir: File) : ExtractResult()
+        data class Ok(val books: List<ExtractedBook>, val workDir: File) : ExtractResult()
         data class Err(val message: String) : ExtractResult()
     }
 
     /**
-     * Extracts all PDF entries from [zipUri] into a unique cache subdirectory.
+     * Extracts all PDF/CBR entries from [zipUri] into a unique cache subdirectory.
      * Caller must delete [ExtractResult.Ok.workDir] when finished.
      */
     suspend fun extractPdfs(
+        context: Context,
+        zipUri: Uri
+    ): ExtractResult = extractBooks(context, zipUri)
+
+    suspend fun extractBooks(
         context: Context,
         zipUri: Uri
     ): ExtractResult = withContext(Dispatchers.IO) {
@@ -50,26 +54,30 @@ object ZipPdfImporter {
                     )
                 }
 
-            val pdfs = mutableListOf<ExtractedPdf>()
+            val books = mutableListOf<ExtractedBook>()
             input.use { stream ->
                 ZipInputStream(stream.buffered()).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
                         val name = entry.name ?: ""
-                        val isPdf = !entry.isDirectory &&
-                            name.substringAfterLast('/').lowercase().endsWith(".pdf")
+                        val baseName = name.substringAfterLast('/')
+                        val supported = !entry.isDirectory && BookFiles.isSupportedImportName(baseName)
 
-                        if (isPdf) {
+                        if (supported) {
                             val safeName = sanitizeEntryName(name)
                             if (safeName != null) {
-                                val outFile = File(workDir, "pdf_${pdfs.size}_${UUID.randomUUID()}.pdf")
+                                val ext = if (BookFiles.isCbrName(safeName)) "cbr" else "pdf"
+                                val outFile = File(
+                                    workDir,
+                                    "book_${books.size}_${UUID.randomUUID()}.$ext"
+                                )
                                 FileOutputStream(outFile).use { output ->
                                     zis.copyTo(output)
                                 }
-                                val displayName = name.substringAfterLast('/').ifBlank {
-                                    "book_${pdfs.size + 1}.pdf"
+                                val displayName = baseName.ifBlank {
+                                    "book_${books.size + 1}.$ext"
                                 }
-                                pdfs.add(ExtractedPdf(outFile, displayName))
+                                books.add(ExtractedBook(outFile, displayName))
                             }
                         }
                         zis.closeEntry()
@@ -78,14 +86,14 @@ object ZipPdfImporter {
                 }
             }
 
-            if (pdfs.isEmpty()) {
+            if (books.isEmpty()) {
                 workDir.deleteRecursively()
                 return@withContext ExtractResult.Err(
-                    context.getString(R.string.zip_no_pdfs_found)
+                    context.getString(R.string.zip_no_books_found)
                 )
             }
 
-            ExtractResult.Ok(pdfs, workDir)
+            ExtractResult.Ok(books, workDir)
         } catch (_: ZipException) {
             workDir.deleteRecursively()
             ExtractResult.Err(context.getString(R.string.zip_corrupted))
@@ -98,10 +106,6 @@ object ZipPdfImporter {
         }
     }
 
-    /**
-     * Rejects path traversal (`..`) and absolute paths inside ZIP entries.
-     * Returns a relative safe path segment or null if unsafe.
-     */
     private fun sanitizeEntryName(name: String): String? {
         val normalized = name.replace('\\', '/')
         if (normalized.startsWith("/") || normalized.contains("..")) return null

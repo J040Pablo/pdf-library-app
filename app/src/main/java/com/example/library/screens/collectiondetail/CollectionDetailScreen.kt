@@ -22,15 +22,18 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +56,7 @@ import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.LibraryTheme
 import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.CollectionViewModel
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
@@ -63,13 +67,13 @@ fun SharedTransitionScope.CollectionDetailScreen(
     onBookClick: (bookId: String, origin: String) -> Unit,
     onCollectionClick: (String) -> Unit = {},
     onBreadcrumbClick: (String?) -> Unit = {},
-    onAddBooksClick: () -> Unit,
     onCreateSubcollectionClick: () -> Unit = {},
     onEditClick: () -> Unit,
     onBackClick: () -> Unit,
     viewModel: CollectionViewModel = viewModel()
 ) {
     val allCollections by viewModel.collections.collectAsState()
+    val allBooks by viewModel.allBooks.collectAsState()
     val collection = allCollections.firstOrNull { it.id == collectionId }
         ?: return
 
@@ -86,6 +90,67 @@ fun SharedTransitionScope.CollectionDetailScreen(
     val moveDestinations = remember(allCollections, collectionId) {
         allCollections.filter { it.id != collectionId }
     }
+    val availableToAdd = remember(allBooks, collection.bookIds) {
+        allBooks.filter { it.id !in collection.bookIds }
+    }
+
+    var addBooksSheet by remember { mutableStateOf<AddBooksSheet?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun showAddedSnackbar(added: Int) {
+        if (added <= 0) return
+        scope.launch {
+            val message = if (added == 1) {
+                context.getString(R.string.books_added_to_collection_one)
+            } else {
+                context.getString(R.string.books_added_to_collection, added)
+            }
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    val importer = rememberCollectionBookImporter(
+        collectionId = collectionId,
+        onBooksAdded = { added ->
+            addBooksSheet = null
+            showAddedSnackbar(added)
+        },
+        onImportError = { message ->
+            scope.launch { snackbarHostState.showSnackbar(message) }
+        }
+    )
+
+    LaunchedEffect(importer.isImporting) {
+        if (importer.isImporting) {
+            addBooksSheet = AddBooksSheet.Importing
+        } else if (addBooksSheet == AddBooksSheet.Importing) {
+            addBooksSheet = null
+        }
+    }
+
+    when (addBooksSheet) {
+        AddBooksSheet.Options -> AddBooksOptionsDialog(
+            onDismiss = { addBooksSheet = null },
+            onImportNew = {
+                addBooksSheet = null
+                importer.launchImport()
+            },
+            onAddExisting = { addBooksSheet = AddBooksSheet.ExistingPicker }
+        )
+        AddBooksSheet.ExistingPicker -> AddExistingBooksDialog(
+            availableBooks = availableToAdd,
+            onDismiss = { addBooksSheet = null },
+            onConfirm = { ids ->
+                val added = viewModel.addBooksToCollection(collectionId, ids)
+                addBooksSheet = null
+                showAddedSnackbar(added)
+            }
+        )
+        AddBooksSheet.Importing -> ImportingBooksDialog()
+        null -> Unit
+    }
 
     CollectionDetailContent(
         collection = collection,
@@ -95,10 +160,11 @@ fun SharedTransitionScope.CollectionDetailScreen(
         childCountByParent = childCountByParent,
         moveDestinations = moveDestinations,
         animatedVisibilityScope = animatedVisibilityScope,
+        snackbarHostState = snackbarHostState,
         onBookClick = onBookClick,
         onCollectionClick = onCollectionClick,
         onBreadcrumbClick = onBreadcrumbClick,
-        onAddBooksClick = onAddBooksClick,
+        onAddBooksClick = { addBooksSheet = AddBooksSheet.Options },
         onCreateSubcollectionClick = onCreateSubcollectionClick,
         onEditClick = onEditClick,
         onBackClick = onBackClick,
@@ -120,6 +186,7 @@ private fun SharedTransitionScope.CollectionDetailContent(
     childCountByParent: Map<String?, Int>,
     moveDestinations: List<Collection>,
     animatedVisibilityScope: AnimatedVisibilityScope,
+    snackbarHostState: SnackbarHostState = SnackbarHostState(),
     onBookClick: (bookId: String, origin: String) -> Unit,
     onCollectionClick: (String) -> Unit,
     onBreadcrumbClick: (String?) -> Unit,
@@ -161,6 +228,7 @@ private fun SharedTransitionScope.CollectionDetailContent(
 
     Scaffold(
         contentWindowInsets = WindowInsets.systemBars,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (selectedBookIds.isNotEmpty()) {
                 TopAppBar(

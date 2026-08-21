@@ -90,6 +90,9 @@ class CollectionViewModel : ViewModel() {
         CollectionRepository.removeBooksFromCollection(collectionId, bookIds)
     }
 
+    fun addBooksToCollection(collectionId: String, bookIds: List<String>): Int =
+        CollectionRepository.addBooksToCollection(collectionId, bookIds)
+
     fun moveCollection(collectionId: String, newParentId: String?): Boolean =
         CollectionRepository.moveCollection(collectionId, newParentId)
 

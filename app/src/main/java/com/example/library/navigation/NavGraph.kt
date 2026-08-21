@@ -225,9 +225,6 @@ fun NavGraph(
                             }
                         }
                     },
-                    onAddBooksClick = {
-                        navController.navigate(Screen.CreateCollection.createRoute(collectionId = collectionId))
-                    },
                     onCreateSubcollectionClick = {
                         navController.navigate(
                             Screen.CreateCollection.createRoute(parentId = collectionId)

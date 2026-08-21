@@ -66,7 +66,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.library.R
+import com.example.library.data.BookFiles
 import com.example.library.model.Book
+import com.example.library.model.BookFormat
 import com.example.library.model.Chapter
 import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.ReadingViewModel
@@ -663,74 +665,114 @@ private fun PageContentView(
     totalPagesInChapter: Int
 ) {
     val context = LocalContext.current
+    val globalPage = chapter.startPage + pageIndex
     val pdfFile = remember(book.id) {
-        File(context.filesDir, "books/${book.id}.pdf").takeIf { it.exists() }
+        BookFiles.pdfFile(context, book.id).takeIf { it.exists() }
+    }
+    val comicPage = remember(book.id, globalPage) {
+        BookFiles.comicPageFile(context, book.id, globalPage).takeIf { it.exists() }
     }
 
-    if (pdfFile != null) {
-        // Render actual PDF page using PdfRenderer
-        val globalPage = chapter.startPage + pageIndex
-        var bitmap by remember(pdfFile.absolutePath, globalPage) { mutableStateOf<Bitmap?>(null) }
+    when {
+        pdfFile != null -> {
+            var bitmap by remember(pdfFile.absolutePath, globalPage) { mutableStateOf<Bitmap?>(null) }
 
-        LaunchedEffect(pdfFile.absolutePath, globalPage) {
-            withContext(Dispatchers.IO) {
-                try {
-                    ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
-                        PdfRenderer(pfd).use { renderer ->
-                            if (globalPage < renderer.pageCount) {
-                                renderer.openPage(globalPage).use { page ->
-                                    val renderW = (page.width * 2).coerceAtLeast(1080)
-                                    val renderH = (page.height * 2).coerceAtLeast(1440)
-                                    val bmp = Bitmap.createBitmap(renderW, renderH, Bitmap.Config.ARGB_8888)
-                                    bmp.eraseColor(android.graphics.Color.WHITE)
-                                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                                    bitmap = bmp
+            LaunchedEffect(pdfFile.absolutePath, globalPage) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                            PdfRenderer(pfd).use { renderer ->
+                                if (globalPage < renderer.pageCount) {
+                                    renderer.openPage(globalPage).use { page ->
+                                        val renderW = (page.width * 2).coerceAtLeast(1080)
+                                        val renderH = (page.height * 2).coerceAtLeast(1440)
+                                        val bmp = Bitmap.createBitmap(renderW, renderH, Bitmap.Config.ARGB_8888)
+                                        bmp.eraseColor(android.graphics.Color.WHITE)
+                                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                        bitmap = bmp
+                                    }
                                 }
                             }
                         }
+                    } catch (_: Exception) {
+                        bitmap = null
                     }
-                } catch (_: Exception) {
-                    bitmap = null
                 }
             }
-        }
 
-        if (bitmap != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    bitmap = bitmap!!.asImageBitmap(),
-                    contentDescription = stringResource(
-                        R.string.page_of_chapter,
-                        pageIndex + 1,
-                        chapter.title
-                    ),
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
+            PageBitmapView(
+                bitmap = bitmap,
+                contentDescription = stringResource(
+                    R.string.page_of_chapter,
+                    pageIndex + 1,
+                    chapter.title
                 )
+            )
+        }
+        comicPage != null || book.format == com.example.library.model.BookFormat.COMIC -> {
+            var bitmap by remember(book.id, globalPage) { mutableStateOf<Bitmap?>(null) }
+
+            LaunchedEffect(book.id, globalPage) {
+                withContext(Dispatchers.IO) {
+                    val pageFile = BookFiles.comicPageFile(context, book.id, globalPage)
+                    bitmap = try {
+                        if (pageFile.exists()) {
+                            android.graphics.BitmapFactory.decodeFile(pageFile.absolutePath)
+                        } else null
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
             }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+
+            PageBitmapView(
+                bitmap = bitmap,
+                contentDescription = stringResource(
+                    R.string.page_of_chapter,
+                    pageIndex + 1,
+                    chapter.title
+                )
+            )
+        }
+        else -> {
+            EbookPageTextContentView(
+                book = book,
+                chapter = chapter,
+                pageIndex = pageIndex,
+                totalPagesInChapter = totalPagesInChapter
+            )
+        }
+    }
+}
+
+@Composable
+private fun PageBitmapView(
+    bitmap: Bitmap?,
+    contentDescription: String,
+) {
+    if (bitmap != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
         }
     } else {
-        // Formatted Ebook Mock Content Renderer for seed / sample books
-        EbookPageTextContentView(
-            book = book,
-            chapter = chapter,
-            pageIndex = pageIndex,
-            totalPagesInChapter = totalPagesInChapter
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
     }
 }
 
@@ -868,9 +910,9 @@ private suspend fun generatePageBitmap(
     pageIndex: Int
 ): Bitmap? = withContext(Dispatchers.IO) {
     try {
-        val pdfFile = File(context.filesDir, "books/${book.id}.pdf").takeIf { it.exists() }
+        val globalPage = chapter.startPage + pageIndex
+        val pdfFile = BookFiles.pdfFile(context, book.id).takeIf { it.exists() }
         if (pdfFile != null) {
-            val globalPage = chapter.startPage + pageIndex
             var generatedBmp: Bitmap? = null
             ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
                 PdfRenderer(pfd).use { renderer ->
@@ -887,6 +929,13 @@ private suspend fun generatePageBitmap(
                 }
             }
             generatedBmp
+        } else if (book.format == BookFormat.COMIC ||
+            BookFiles.comicPageFile(context, book.id, globalPage).exists()
+        ) {
+            val pageFile = BookFiles.comicPageFile(context, book.id, globalPage)
+            if (pageFile.exists()) {
+                android.graphics.BitmapFactory.decodeFile(pageFile.absolutePath)
+            } else null
         } else {
             val width = 1080
             val height = 1920

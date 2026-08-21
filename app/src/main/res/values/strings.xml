@@ -138,13 +138,22 @@
     <string name="page_start">Page %1$d</string>
     <string name="unknown_author">Unknown author</string>
 
+    <string name="import_new_book">Import New Book</string>
+    <string name="add_existing_book">Add Existing Book</string>
+    <string name="add_books_options_title">Add books</string>
+    <string name="books_added_to_collection_one">1 book added to collection</string>
+    <string name="books_added_to_collection">%1$d books added to collection</string>
+    <string name="no_books_available_to_add">All library books are already in this collection</string>
+    <string name="add_selected_books">Add selected</string>
+    <string name="importing_into_collection">Importing…</string>
+
     <!-- Upload / Import -->
     <string name="add_first_book">Add your first book</string>
-    <string name="import_pdf_subtitle">Import PDFs or a ZIP archive to build your digital library</string>
+    <string name="import_pdf_subtitle">Import PDFs, CBR comics, or a ZIP archive to build your digital library</string>
     <string name="add_book">Add Book</string>
-    <string name="add_pdfs">Add PDFs</string>
+    <string name="add_pdfs">Add PDFs / CBRs</string>
     <string name="import_zip">Import ZIP</string>
-    <string name="importing_pdf">Importing PDF…</string>
+    <string name="importing_pdf">Importing…</string>
     <string name="importing_zip">Importing ZIP…</string>
     <string name="extracting_zip">Extracting ZIP archive…</string>
     <string name="importing_progress">Importing %1$d of %2$d…</string>
@@ -154,16 +163,21 @@
     <string name="done">Done</string>
     <string name="book_added_success">Book \'%1$s\' added successfully.</string>
     <string name="invalid_pdf_file">Invalid file. Please select a PDF.</string>
+    <string name="invalid_book_file">Invalid file. Please select a PDF or CBR.</string>
     <string name="invalid_zip_file">Invalid file. Please select a ZIP archive.</string>
     <string name="could_not_read_pdf">Could not read the selected PDF file.</string>
+    <string name="could_not_read_cbr">Could not read the selected CBR file.</string>
     <string name="failed_to_copy_file">Failed to copy file: %1$s.</string>
     <string name="io_error">I/O error</string>
     <string name="pdf_password_protected">This PDF is password-protected and cannot be imported.</string>
     <string name="pdf_import_failed">Could not import the PDF. The file may be corrupted or invalid.</string>
+    <string name="cbr_import_failed">Could not import the CBR. The archive may be corrupted or unsupported.</string>
+    <string name="cbr_no_pages_found">No comic pages were found inside the CBR archive.</string>
     <string name="zip_could_not_read">Could not read the selected ZIP file.</string>
     <string name="zip_corrupted">This ZIP archive is corrupted or invalid.</string>
     <string name="zip_extract_failed">Failed to extract the ZIP archive.</string>
     <string name="zip_no_pdfs_found">No PDF files were found inside the ZIP archive.</string>
+    <string name="zip_no_books_found">No PDF or CBR files were found inside the ZIP archive.</string>
 
     <!-- Export -->
     <string name="export_pdf">Export PDF</string>

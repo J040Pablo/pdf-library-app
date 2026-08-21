@@ -95,7 +95,15 @@ fun UploadScreen(
             when (state) {
                 is UploadState.Empty -> EmptyStateView(
                     onAddPdfs = {
-                        pdfLauncher.launch(arrayOf("application/pdf"))
+                        pdfLauncher.launch(
+                            arrayOf(
+                                "application/pdf",
+                                "application/x-cbr",
+                                "application/vnd.comicbook-rar",
+                                "application/x-rar-compressed",
+                                "application/octet-stream"
+                            )
+                        )
                     },
                     onAddZip = {
                         zipLauncher.launch(

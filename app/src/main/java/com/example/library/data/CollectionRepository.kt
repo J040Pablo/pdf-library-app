@@ -211,6 +211,27 @@ object CollectionRepository {
         )
     }
 
+    /**
+     * Appends [bookIds] to [collectionId], skipping IDs already present.
+     * Returns the number of newly added books.
+     */
+    fun addBooksToCollection(collectionId: String, bookIds: List<String>): Int {
+        if (bookIds.isEmpty()) return 0
+        val existing = getCollectionById(collectionId) ?: return 0
+        val merged = existing.bookIds.toMutableList()
+        var added = 0
+        bookIds.forEach { id ->
+            if (id !in merged) {
+                merged.add(id)
+                added++
+            }
+        }
+        if (added > 0) {
+            updateCollection(existing.copy(bookIds = merged))
+        }
+        return added
+    }
+
     private fun persist() {
         val s = store ?: return
         val snapshot = _collections.value

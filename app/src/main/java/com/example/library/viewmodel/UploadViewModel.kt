@@ -5,8 +5,9 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.library.R
+import com.example.library.data.BookFiles
 import com.example.library.data.BookRepository
-import com.example.library.data.PdfImporter
+import com.example.library.data.LibraryImporter
 import com.example.library.data.ZipPdfImporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,7 +44,7 @@ sealed class UploadState {
 }
 
 /**
- * Drives the Upload tab: multi-PDF and ZIP import with per-file results.
+ * Drives the Upload tab: multi-PDF/CBR and ZIP import with per-file results.
  */
 class UploadViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -53,20 +54,20 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
     fun onFilesSelected(files: List<Pair<Uri, String?>>) {
         if (files.isEmpty()) return
 
-        val pdfFiles = files.mapNotNull { (uri, name) ->
+        val bookFiles = files.mapNotNull { (uri, name) ->
             val fileName = name?.takeIf { it.isNotBlank() } ?: "document.pdf"
-            if (fileName.lowercase().endsWith(".pdf")) uri to fileName else null
+            if (BookFiles.isSupportedImportName(fileName)) uri to fileName else null
         }
 
-        if (pdfFiles.isEmpty()) {
+        if (bookFiles.isEmpty()) {
             _uiState.value = UploadState.Error(
-                getApplication<Application>().getString(R.string.invalid_pdf_file)
+                getApplication<Application>().getString(R.string.invalid_book_file)
             )
             return
         }
 
         viewModelScope.launch {
-            importPdfList(pdfFiles)
+            importUriList(bookFiles)
         }
     }
 
@@ -97,14 +98,14 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
                 }
             )
 
-            when (val extracted = ZipPdfImporter.extractPdfs(context, uri)) {
+            when (val extracted = ZipPdfImporter.extractBooks(context, uri)) {
                 is ZipPdfImporter.ExtractResult.Err -> {
                     _uiState.value = UploadState.Error(extracted.message)
                 }
                 is ZipPdfImporter.ExtractResult.Ok -> {
                     try {
-                        val pairs = extracted.pdfs.map { it.file to it.displayName }
-                        importLocalPdfFiles(pairs)
+                        val pairs = extracted.books.map { it.file to it.displayName }
+                        importLocalFiles(pairs)
                     } finally {
                         extracted.workDir.deleteRecursively()
                     }
@@ -113,7 +114,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private suspend fun importPdfList(files: List<Pair<Uri, String>>) {
+    private suspend fun importUriList(files: List<Pair<Uri, String>>) {
         val context = getApplication<Application>().applicationContext
         val results = mutableListOf<ImportItemResult>()
         val knownHashes = BookRepository.books.value
@@ -128,8 +129,8 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
                 currentFileName = fileName
             )
 
-            when (val result = PdfImporter.import(context, uri, fileName, knownHashes)) {
-                is PdfImporter.ImportResult.Ok -> {
+            when (val result = LibraryImporter.import(context, uri, fileName, knownHashes)) {
+                is LibraryImporter.ImportResult.Ok -> {
                     BookRepository.addBook(result.book)
                     result.book.contentHash?.let { knownHashes.add(it) }
                     results.add(
@@ -140,7 +141,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
                         )
                     )
                 }
-                is PdfImporter.ImportResult.Duplicate -> {
+                is LibraryImporter.ImportResult.Duplicate -> {
                     results.add(
                         ImportItemResult(
                             fileName = fileName,
@@ -152,7 +153,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
                         )
                     )
                 }
-                is PdfImporter.ImportResult.Err -> {
+                is LibraryImporter.ImportResult.Err -> {
                     results.add(
                         ImportItemResult(
                             fileName = fileName,
@@ -167,7 +168,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.value = UploadState.BatchComplete(results)
     }
 
-    private suspend fun importLocalPdfFiles(files: List<Pair<java.io.File, String>>) {
+    private suspend fun importLocalFiles(files: List<Pair<java.io.File, String>>) {
         val context = getApplication<Application>().applicationContext
         val results = mutableListOf<ImportItemResult>()
         val knownHashes = BookRepository.books.value
@@ -183,7 +184,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
             )
 
             when (
-                val result = PdfImporter.importFromFile(
+                val result = LibraryImporter.importFromFile(
                     context = context,
                     file = file,
                     displayName = fileName,
@@ -191,7 +192,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
                     deleteSourceAfter = true
                 )
             ) {
-                is PdfImporter.ImportResult.Ok -> {
+                is LibraryImporter.ImportResult.Ok -> {
                     BookRepository.addBook(result.book)
                     result.book.contentHash?.let { knownHashes.add(it) }
                     results.add(
@@ -202,7 +203,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
                         )
                     )
                 }
-                is PdfImporter.ImportResult.Duplicate -> {
+                is LibraryImporter.ImportResult.Duplicate -> {
                     results.add(
                         ImportItemResult(
                             fileName = fileName,
@@ -214,7 +215,7 @@ class UploadViewModel(application: Application) : AndroidViewModel(application) 
                         )
                     )
                 }
-                is PdfImporter.ImportResult.Err -> {
+                is LibraryImporter.ImportResult.Err -> {
                     results.add(
                         ImportItemResult(
                             fileName = fileName,

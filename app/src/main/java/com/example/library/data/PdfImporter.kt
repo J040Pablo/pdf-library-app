@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import com.example.library.R
 import com.example.library.model.Book
+import com.example.library.model.BookFormat
 import com.example.library.model.Chapter
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
@@ -243,7 +244,8 @@ object PdfImporter {
             currentPage = 0,
             progress = 0f,
             chapters = chapters,
-            contentHash = contentHash
+            contentHash = contentHash,
+            format = BookFormat.PDF
         )
         return ImportResult.Ok(book)
     }

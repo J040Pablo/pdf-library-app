@@ -25,18 +25,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.library.R
+import com.example.library.data.BookFiles
+import com.example.library.data.BookRepository
+import com.example.library.data.LibraryImporter
 import com.example.library.model.Book
 import com.example.library.ui.components.BookCoverPlaceholder
 import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.LibraryTheme
 import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.CollectionViewModel
+import kotlinx.coroutines.launch
+import android.provider.OpenableColumns
+import android.content.Context
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +89,9 @@ internal fun CreateCollectionContent(
     var selectedIds by remember(collectionToEdit) { mutableStateOf((collectionToEdit?.bookIds ?: emptyList()).toSet()) }
     var searchQuery by remember { mutableStateOf("") }
     var coverUri by remember(collectionToEdit) { mutableStateOf<String?>(collectionToEdit?.coverUri) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isImporting by remember { mutableStateOf(false) }
 
     // Image picker for collection cover
     val coverPickerLauncher = rememberLauncherForActivityResult(
@@ -88,12 +100,38 @@ internal fun CreateCollectionContent(
         coverUri = uri?.toString()
     }
 
-    // PDF picker — reuses the same approach as LibraryScreen's import
-    val pdfLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        // In a real implementation this would import the PDF into BookRepository
-        // and auto-select it. Hook is wired for future completion.
+    val bookImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            isImporting = true
+            try {
+                val knownHashes = BookRepository.books.value
+                    .mapNotNull { it.contentHash }
+                    .toMutableSet()
+                for (uri in uris) {
+                    val name = getCreateDisplayName(context, uri) ?: "document.pdf"
+                    if (!BookFiles.isSupportedImportName(name)) continue
+                    when (val result = LibraryImporter.import(context, uri, name, knownHashes)) {
+                        is LibraryImporter.ImportResult.Ok -> {
+                            BookRepository.addBook(result.book)
+                            result.book.contentHash?.let { knownHashes.add(it) }
+                            selectedIds = selectedIds + result.book.id
+                        }
+                        is LibraryImporter.ImportResult.Duplicate -> {
+                            BookRepository.books.value
+                                .firstOrNull { it.title == result.existingTitle }
+                                ?.id
+                                ?.let { selectedIds = selectedIds + it }
+                        }
+                        is LibraryImporter.ImportResult.Err -> Unit
+                    }
+                }
+            } finally {
+                isImporting = false
+            }
+        }
     }
 
     val filteredBooks = remember(allBooks, searchQuery) {
@@ -102,6 +140,24 @@ internal fun CreateCollectionContent(
             it.title.contains(searchQuery, ignoreCase = true) ||
                 it.author.contains(searchQuery, ignoreCase = true)
         }
+    }
+
+    if (isImporting) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.importing_into_collection)) },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            },
+            confirmButton = {}
+        )
     }
 
     Scaffold(
@@ -195,12 +251,22 @@ internal fun CreateCollectionContent(
                     modifier = Modifier.padding(horizontal = Spacing.Large, vertical = Spacing.Medium)
                 ) {
                     OutlinedButton(
-                        onClick = { pdfLauncher.launch(arrayOf("application/pdf")) },
+                        onClick = {
+                            bookImportLauncher.launch(
+                                arrayOf(
+                                    "application/pdf",
+                                    "application/x-cbr",
+                                    "application/vnd.comicbook-rar",
+                                    "application/x-rar-compressed",
+                                    "application/octet-stream"
+                                )
+                            )
+                        },
                         shape = RoundedCornerShape(Dimens.CornerCard)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Import PDF")
+                        Text(stringResource(R.string.import_pdf))
                     }
                 }
             }
@@ -467,4 +533,15 @@ fun CreateCollectionEmptyPreview() {
             onCancel = {}
         )
     }
+}
+
+private fun getCreateDisplayName(context: Context, uri: Uri): String? {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+        ?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) return cursor.getString(index)
+            }
+        }
+    return uri.lastPathSegment
 }

@@ -26,6 +26,7 @@ object BookRepository {
     val user: StateFlow<User> = _user.asStateFlow()
 
     @Volatile private var store: BookStore? = null
+    @Volatile private var appContext: Context? = null
     @Volatile private var initialized = false
 
     /**
@@ -36,6 +37,7 @@ object BookRepository {
         if (initialized) return
         synchronized(this) {
             if (initialized) return
+            appContext = context.applicationContext
             val bookStore = BookStore(context.applicationContext)
             store = bookStore
             initialized = true
@@ -57,8 +59,10 @@ object BookRepository {
     }
 
     fun removeBook(bookId: String) {
+        val removed = _books.value.firstOrNull { it.id == bookId }
         _books.value = _books.value.filter { it.id != bookId }
         CollectionRepository.removeBooksFromAllCollections(setOf(bookId))
+        removed?.let { deleteFiles(it) }
         persist()
     }
 
@@ -67,8 +71,10 @@ object BookRepository {
      * Also strips the deleted IDs from every Collection to prevent orphaned references.
      */
     fun removeBooks(bookIds: Set<String>) {
+        val removed = _books.value.filter { it.id in bookIds }
         _books.value = _books.value.filter { it.id !in bookIds }
         CollectionRepository.removeBooksFromAllCollections(bookIds)
+        removed.forEach { deleteFiles(it) }
         persist()
     }
 
@@ -122,6 +128,11 @@ object BookRepository {
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    private fun deleteFiles(book: Book) {
+        val context = appContext ?: return
+        scope.launch { BookFiles.deleteForBook(context, book) }
+    }
 
     /** Fire-and-forget persistence on the IO dispatcher. */
     private fun persist() {
