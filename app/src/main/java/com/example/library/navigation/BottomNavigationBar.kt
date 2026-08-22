@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.Elevation
 import com.example.library.ui.theme.Spacing
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.pow
 
 /** Compact M3-style active indicator behind the icon only. */
 private val IndicatorSize = 40.dp
@@ -65,7 +70,6 @@ fun BottomNavigationBar(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Cached only for nested screens (search/detail/reading) so a parent tab stays highlighted.
     var lastTopLevelRoute by remember { mutableStateOf(Screen.Home.route) }
 
     val selectedRoute = resolveSelectedTabRoute(currentRoute, lastTopLevelRoute)
@@ -77,7 +81,8 @@ fun BottomNavigationBar(
             ?: if (
                 currentRoute != null &&
                 (currentRoute.startsWith("collection") ||
-                    currentRoute.startsWith("create_collection"))
+                    currentRoute.startsWith("create_collection") ||
+                    currentRoute.startsWith("book_picker"))
             ) {
                 Screen.Library.route
             } else {
@@ -127,26 +132,72 @@ fun BottomNavigationBar(
                     val indicatorPx = with(density) { IndicatorSize.toPx() }
                     val itemWidthPx = with(density) { itemWidth.toPx() }
 
-                    // Visual-only: slides directly from current X to target X.
-                    // Does not drive selection or navigation.
                     val indicatorX = remember { Animatable(Float.NaN) }
                     val targetX = (itemWidthPx - indicatorPx) / 2f + itemWidthPx * selectedIndex
+                    var previousSelectedIndex by remember { mutableStateOf(selectedIndex) }
 
+                    // Destination bounce: compress then spring up when selection changes.
+                    val destinationBounce = remember { Animatable(1f) }
+                    LaunchedEffect(selectedIndex) {
+                        destinationBounce.snapTo(0.86f)
+                        destinationBounce.animateTo(
+                            targetValue = 1f,
+                            animationSpec = spring(
+                                dampingRatio = 0.42f,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
+                    }
+
+                    // Travel duration scales with tab distance so the indicator
+                    // visibly passes intermediate icons on multi-tab jumps.
                     LaunchedEffect(selectedIndex, itemWidthPx) {
                         if (indicatorX.value.isNaN()) {
                             indicatorX.snapTo(targetX)
                         } else {
+                            val tabDistance = abs(selectedIndex - previousSelectedIndex)
+                                .coerceAtLeast(1)
+                            val travelMs = 220 + (tabDistance - 1) * 90
                             indicatorX.animateTo(
                                 targetValue = targetX,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMedium
+                                animationSpec = tween(
+                                    durationMillis = travelMs,
+                                    easing = FastOutSlowInEasing
                                 )
                             )
                         }
+                        previousSelectedIndex = selectedIndex
                     }
 
+                    val indicatorCenterX = if (indicatorX.value.isNaN()) {
+                        targetX + indicatorPx / 2f
+                    } else {
+                        indicatorX.value + indicatorPx / 2f
+                    }
+
+                    val primary = MaterialTheme.colorScheme.primary
+                    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+
                     if (!indicatorX.value.isNaN()) {
+                        // Soft primary glow under the traveling indicator.
+                        Box(
+                            modifier = Modifier
+                                .offset(
+                                    x = with(density) { (indicatorX.value - 6.dp.toPx()).toDp() },
+                                    y = IndicatorTopPadding - 2.dp
+                                )
+                                .size(IndicatorSize + 12.dp)
+                                .graphicsLayer { alpha = 0.35f }
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            primary.copy(alpha = 0.45f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
                         Box(
                             modifier = Modifier
                                 .offset(
@@ -155,30 +206,41 @@ fun BottomNavigationBar(
                                 )
                                 .size(IndicatorSize)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .background(primaryContainer)
                         )
                     }
 
                     Row(Modifier.fillMaxSize()) {
                         bottomNavItems.forEachIndexed { index, screen ->
                             val isSelected = index == selectedIndex
-                            val iconScale by animateFloatAsState(
-                                targetValue = if (isSelected) 1.08f else 1f,
+
+                            // Wave: subtle scale as the indicator center passes this tab.
+                            val slotCenterX = itemWidthPx * index + itemWidthPx / 2f
+                            val distance = abs(indicatorCenterX - slotCenterX) / itemWidthPx
+                            val wave = exp(-(distance.pow(2) / 0.22f)).toFloat()
+                            val waveScale = 1f + wave * 0.07f
+
+                            val baseScale by animateFloatAsState(
+                                targetValue = if (isSelected) 1.1f else 1f,
                                 animationSpec = spring(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
                                     stiffness = Spring.StiffnessMedium
                                 ),
-                                label = "navIconScale$index"
+                                label = "navBaseScale$index"
                             )
                             val contentColor by animateColorAsState(
-                                targetValue = if (isSelected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
+                                targetValue = if (isSelected) primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 animationSpec = tween(180, easing = FastOutSlowInEasing),
                                 label = "navContentColor$index"
                             )
+
+                            val iconScale = if (isSelected) {
+                                baseScale * destinationBounce.value
+                            } else {
+                                // Intermediate tabs get a gentle wave only — never "selected".
+                                waveScale.coerceIn(1f, 1.08f)
+                            }
 
                             Column(
                                 Modifier
@@ -211,6 +273,8 @@ fun BottomNavigationBar(
                                             .graphicsLayer {
                                                 scaleX = iconScale
                                                 scaleY = iconScale
+                                                // Tiny elevation feel on the active icon.
+                                                shadowElevation = if (isSelected) 4f else 0f
                                             }
                                     )
                                 }
@@ -235,30 +299,22 @@ fun BottomNavigationBar(
     }
 }
 
-/**
- * Selected tab always mirrors the real destination when on a bottom-nav root.
- * [lastTopLevel] is only a fallback for nested routes (search, book detail, …).
- */
 private fun resolveSelectedTabRoute(currentRoute: String?, lastTopLevel: String): String {
     if (currentRoute == null) return lastTopLevel
     bottomNavItems.firstOrNull { it.route == currentRoute }?.let { return it.route }
-    if (currentRoute.startsWith("collection") || currentRoute.startsWith("create_collection")) {
+    if (currentRoute.startsWith("collection") ||
+        currentRoute.startsWith("create_collection") ||
+        currentRoute.startsWith("book_picker")
+    ) {
         return Screen.Library.route
     }
     return lastTopLevel
 }
 
-/**
- * Bottom-tab navigation without intermediate destinations or double-taps.
- *
- * Prefer [NavController.popBackStack] when the tab is already on the stack
- * (the usual case for Home). Only [NavController.navigate] when the tab is absent.
- */
 private fun navigateToBottomTab(navController: NavController, screen: Screen) {
     val currentRoute = navController.currentDestination?.route
     if (currentRoute == screen.route) return
 
-    // Upload/Library/Profile → Home (and any tab already under the stack): one pop, done.
     if (navController.popBackStack(screen.route, inclusive = false)) {
         return
     }

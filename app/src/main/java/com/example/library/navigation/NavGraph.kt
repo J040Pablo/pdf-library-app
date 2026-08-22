@@ -1,14 +1,6 @@
 package com.example.library.navigation
 
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.navigation.NavHostController
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -16,25 +8,38 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavBackStackEntry
-import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.example.library.R
+import com.example.library.data.BookRepository
+import com.example.library.data.CollectionRepository
+import com.example.library.model.Book
 import com.example.library.screens.bookdetail.BookDetailScreen
+import com.example.library.screens.bookpicker.BookPickerMode
+import com.example.library.screens.bookpicker.BookPickerScreen
 import com.example.library.screens.collectiondetail.CollectionDetailScreen
 import com.example.library.screens.createcollection.CreateCollectionScreen
 import com.example.library.screens.editbook.EditBookScreen
 import com.example.library.screens.home.HomeScreen
-import com.example.library.screens.profile.ProfileScreen
-import com.example.library.screens.search.SearchScreen
 import com.example.library.screens.library.LibraryScreen
+import com.example.library.screens.profile.ProfileScreen
 import com.example.library.screens.reading.ReadingScreen
+import com.example.library.screens.search.SearchScreen
 import com.example.library.screens.upload.UploadScreen
 import com.example.library.viewmodel.ThemeViewModel
-import com.example.library.model.Book
-import com.example.library.model.Chapter
-import com.example.library.data.BookRepository
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -204,9 +209,18 @@ fun NavGraph(
                 route = Screen.CollectionDetail.route
             ) { backStackEntry ->
                 val collectionId = backStackEntry.arguments?.getString("collectionId") ?: ""
+                val addedCountKey = Screen.BookPicker.RESULT_ADDED_COUNT_KEY
+                val addedCount by backStackEntry.savedStateHandle
+                    .getStateFlow(addedCountKey, -1)
+                    .collectAsState()
+
                 CollectionDetailScreen(
                     collectionId = collectionId,
                     animatedVisibilityScope = this@composable,
+                    pendingBooksAddedCount = addedCount.takeIf { it >= 0 },
+                    onPendingBooksAddedConsumed = {
+                        backStackEntry.savedStateHandle[addedCountKey] = -1
+                    },
                     onBookClick = { bookId, origin ->
                         navController.navigate(Screen.BookDetail.createRoute(bookId, origin))
                     },
@@ -217,7 +231,6 @@ fun NavGraph(
                         if (targetId == null) {
                             navController.popBackStack(Screen.Library.route, inclusive = false)
                         } else {
-                            // Pop until we reach the target, or navigate if not on stack.
                             val popped = navController.popBackStack(
                                 Screen.CollectionDetail.createRoute(targetId),
                                 inclusive = false
@@ -232,6 +245,14 @@ fun NavGraph(
                     onCreateSubcollectionClick = {
                         navController.navigate(
                             Screen.CreateCollection.createRoute(parentId = collectionId)
+                        )
+                    },
+                    onAddExistingBooks = {
+                        navController.navigate(
+                            Screen.BookPicker.createRoute(
+                                mode = "add",
+                                collectionId = collectionId
+                            )
                         )
                     },
                     onEditClick = {
@@ -253,15 +274,161 @@ fun NavGraph(
                         nullable = true
                         defaultValue = null
                     }
-                )
+                ),
+                enterTransition = {
+                    slideInHorizontally(animationSpec = tween(320)) { it / 5 } + fadeIn(tween(280))
+                },
+                exitTransition = {
+                    fadeOut(tween(200))
+                },
+                popEnterTransition = {
+                    fadeIn(tween(220))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(animationSpec = tween(280)) { it / 5 } + fadeOut(tween(220))
+                }
             ) { backStackEntry ->
                 val collectionId = backStackEntry.arguments?.getString("collectionId")
                 val parentId = backStackEntry.arguments?.getString("parentId")
+                val resultKey = Screen.BookPicker.RESULT_IDS_KEY
+                val pickerResult by backStackEntry.savedStateHandle
+                    .getStateFlow<String?>(resultKey, null)
+                    .collectAsState()
+                val incomingSelectedIds = remember(pickerResult) {
+                    pickerResult
+                        ?.split(",")
+                        ?.map { it.trim() }
+                        ?.filter { it.isNotEmpty() }
+                }
+
                 CreateCollectionScreen(
                     collectionId = collectionId,
                     parentId = parentId,
+                    incomingSelectedIds = incomingSelectedIds,
+                    onIncomingSelectedConsumed = {
+                        backStackEntry.savedStateHandle.remove<String>(resultKey)
+                    },
+                    onBrowseLibrary = { currentSelectedIds ->
+                        navController.currentBackStackEntry?.savedStateHandle?.set(
+                            Screen.BookPicker.INITIAL_IDS_KEY,
+                            currentSelectedIds.joinToString(",")
+                        )
+                        navController.navigate(Screen.BookPicker.createRoute(mode = "select"))
+                    },
                     onSave = { navController.popBackStack() },
                     onCancel = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = Screen.BookPicker.route,
+                arguments = listOf(
+                    navArgument("mode") {
+                        type = NavType.StringType
+                        defaultValue = "select"
+                    },
+                    navArgument("collectionId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                ),
+                enterTransition = {
+                    slideInHorizontally(animationSpec = tween(340)) { it } + fadeIn(tween(280))
+                },
+                exitTransition = {
+                    fadeOut(tween(180))
+                },
+                popEnterTransition = {
+                    fadeIn(tween(220))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(animationSpec = tween(300)) { it } + fadeOut(tween(220))
+                }
+            ) { backStackEntry ->
+                val modeArg = backStackEntry.arguments?.getString("mode") ?: "select"
+                val collectionId = backStackEntry.arguments?.getString("collectionId")
+                val books by BookRepository.books.collectAsState()
+                val collections by CollectionRepository.collections.collectAsState()
+                val collection = collectionId?.let { id -> collections.firstOrNull { it.id == id } }
+
+                val pickerMode = if (modeArg == "add") {
+                    BookPickerMode.ADD_TO_COLLECTION
+                } else {
+                    BookPickerMode.SELECT
+                }
+
+                val initialIds = remember(backStackEntry) {
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.get<String>(Screen.BookPicker.INITIAL_IDS_KEY)
+                        ?.split(",")
+                        ?.map { it.trim() }
+                        ?.filter { it.isNotEmpty() }
+                        ?.toSet()
+                        ?: emptySet()
+                }
+
+                val availableBooks = remember(books, collection) {
+                    if (pickerMode == BookPickerMode.ADD_TO_COLLECTION && collection != null) {
+                        books.filter { it.id !in collection.bookIds }
+                    } else {
+                        books
+                    }
+                }
+
+                val title = when (pickerMode) {
+                    BookPickerMode.ADD_TO_COLLECTION -> stringResource(
+                        R.string.book_picker_add_title,
+                        collection?.name ?: stringResource(R.string.collections)
+                    )
+                    BookPickerMode.SELECT -> stringResource(R.string.book_picker_title)
+                }
+                val subtitle = stringResource(R.string.book_picker_subtitle, availableBooks.size)
+                val confirmLabel = when (pickerMode) {
+                    BookPickerMode.ADD_TO_COLLECTION -> stringResource(R.string.add_selected_books)
+                    BookPickerMode.SELECT -> stringResource(R.string.confirm_selection)
+                }
+
+                BookPickerScreen(
+                    books = availableBooks,
+                    initialSelectedIds = if (pickerMode == BookPickerMode.SELECT) initialIds else emptySet(),
+                    title = title,
+                    subtitle = subtitle,
+                    confirmLabel = confirmLabel,
+                    mode = pickerMode,
+                    onConfirm = { ids ->
+                        when (pickerMode) {
+                            BookPickerMode.SELECT -> {
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set(Screen.BookPicker.RESULT_IDS_KEY, ids.joinToString(","))
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.remove<String>(Screen.BookPicker.INITIAL_IDS_KEY)
+                            }
+                            BookPickerMode.ADD_TO_COLLECTION -> {
+                                val targetId = collectionId
+                                if (targetId != null && ids.isNotEmpty()) {
+                                    val added = CollectionRepository.addBooksToCollection(targetId, ids)
+                                    navController.previousBackStackEntry
+                                        ?.savedStateHandle
+                                        ?.set(Screen.BookPicker.RESULT_ADDED_COUNT_KEY, added)
+                                }
+                            }
+                        }
+                        navController.popBackStack()
+                    },
+                    onCancel = { navController.popBackStack() },
+                    onImportBook = {
+                        navController.navigate(Screen.Upload.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onCreateCollection = {
+                        navController.navigate(Screen.CreateCollection.createRoute()) {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
         }

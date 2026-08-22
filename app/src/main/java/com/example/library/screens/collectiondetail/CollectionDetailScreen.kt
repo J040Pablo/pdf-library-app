@@ -68,12 +68,14 @@ fun SharedTransitionScope.CollectionDetailScreen(
     onCollectionClick: (String) -> Unit = {},
     onBreadcrumbClick: (String?) -> Unit = {},
     onCreateSubcollectionClick: () -> Unit = {},
+    onAddExistingBooks: () -> Unit = {},
+    pendingBooksAddedCount: Int? = null,
+    onPendingBooksAddedConsumed: () -> Unit = {},
     onEditClick: () -> Unit,
     onBackClick: () -> Unit,
     viewModel: CollectionViewModel = viewModel()
 ) {
     val allCollections by viewModel.collections.collectAsState()
-    val allBooks by viewModel.allBooks.collectAsState()
     val collection = allCollections.firstOrNull { it.id == collectionId }
         ?: return
 
@@ -89,9 +91,6 @@ fun SharedTransitionScope.CollectionDetailScreen(
     }
     val moveDestinations = remember(allCollections, collectionId) {
         allCollections.filter { it.id != collectionId }
-    }
-    val availableToAdd = remember(allBooks, collection.bookIds) {
-        allBooks.filter { it.id !in collection.bookIds }
     }
 
     var addBooksSheet by remember { mutableStateOf<AddBooksSheet?>(null) }
@@ -109,6 +108,12 @@ fun SharedTransitionScope.CollectionDetailScreen(
             }
             snackbarHostState.showSnackbar(message)
         }
+    }
+
+    LaunchedEffect(pendingBooksAddedCount) {
+        val count = pendingBooksAddedCount ?: return@LaunchedEffect
+        showAddedSnackbar(count)
+        onPendingBooksAddedConsumed()
     }
 
     val importer = rememberCollectionBookImporter(
@@ -137,15 +142,9 @@ fun SharedTransitionScope.CollectionDetailScreen(
                 addBooksSheet = null
                 importer.launchImport()
             },
-            onAddExisting = { addBooksSheet = AddBooksSheet.ExistingPicker }
-        )
-        AddBooksSheet.ExistingPicker -> AddExistingBooksDialog(
-            availableBooks = availableToAdd,
-            onDismiss = { addBooksSheet = null },
-            onConfirm = { ids ->
-                val added = viewModel.addBooksToCollection(collectionId, ids)
+            onAddExisting = {
                 addBooksSheet = null
-                showAddedSnackbar(added)
+                onAddExistingBooks()
             }
         )
         AddBooksSheet.Importing -> ImportingBooksDialog()

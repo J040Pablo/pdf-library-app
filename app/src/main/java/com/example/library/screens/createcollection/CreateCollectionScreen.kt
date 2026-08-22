@@ -1,26 +1,58 @@
 package com.example.library.screens.createcollection
 
+import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material3.*
-import com.example.library.model.Collection
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,7 +60,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,20 +69,22 @@ import com.example.library.data.BookFiles
 import com.example.library.data.BookRepository
 import com.example.library.data.LibraryImporter
 import com.example.library.model.Book
-import com.example.library.ui.components.BookCoverPlaceholder
+import com.example.library.model.Collection
+import com.example.library.screens.bookpicker.CollectionShelfPreview
 import com.example.library.ui.theme.Dimens
 import com.example.library.ui.theme.LibraryTheme
 import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.CollectionViewModel
 import kotlinx.coroutines.launch
-import android.provider.OpenableColumns
-import android.content.Context
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateCollectionScreen(
     collectionId: String? = null,
     parentId: String? = null,
+    incomingSelectedIds: List<String>? = null,
+    onIncomingSelectedConsumed: () -> Unit = {},
+    onBrowseLibrary: (currentSelectedIds: Set<String>) -> Unit = {},
     onSave: () -> Unit,
     onCancel: () -> Unit,
     viewModel: CollectionViewModel = viewModel()
@@ -63,6 +96,9 @@ fun CreateCollectionScreen(
         allBooks = allBooks,
         collectionToEdit = collectionToEdit,
         isSubcollection = parentId != null && collectionToEdit == null,
+        incomingSelectedIds = incomingSelectedIds,
+        onIncomingSelectedConsumed = onIncomingSelectedConsumed,
+        onBrowseLibrary = onBrowseLibrary,
         onSave = { name, description, selectedIds, coverUri ->
             if (collectionToEdit != null) {
                 viewModel.updateCollection(collectionToEdit.id, name, description, selectedIds, coverUri)
@@ -81,19 +117,31 @@ internal fun CreateCollectionContent(
     allBooks: List<Book>,
     collectionToEdit: Collection? = null,
     isSubcollection: Boolean = false,
+    incomingSelectedIds: List<String>? = null,
+    onIncomingSelectedConsumed: () -> Unit = {},
+    onBrowseLibrary: (currentSelectedIds: Set<String>) -> Unit = {},
     onSave: (name: String, description: String, selectedBookIds: List<String>, coverUri: String?) -> Unit,
     onCancel: () -> Unit,
 ) {
     var name by remember(collectionToEdit) { mutableStateOf(collectionToEdit?.name ?: "") }
     var description by remember(collectionToEdit) { mutableStateOf(collectionToEdit?.description ?: "") }
     var selectedIds by remember(collectionToEdit) { mutableStateOf((collectionToEdit?.bookIds ?: emptyList()).toSet()) }
-    var searchQuery by remember { mutableStateOf("") }
     var coverUri by remember(collectionToEdit) { mutableStateOf<String?>(collectionToEdit?.coverUri) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isImporting by remember { mutableStateOf(false) }
 
-    // Image picker for collection cover
+    LaunchedEffect(incomingSelectedIds) {
+        if (incomingSelectedIds != null) {
+            selectedIds = incomingSelectedIds.toSet()
+            onIncomingSelectedConsumed()
+        }
+    }
+
+    val selectedBooks = remember(allBooks, selectedIds) {
+        allBooks.filter { it.id in selectedIds }
+    }
+
     val coverPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -111,9 +159,9 @@ internal fun CreateCollectionContent(
                     .mapNotNull { it.contentHash }
                     .toMutableSet()
                 for (uri in uris) {
-                    val name = getCreateDisplayName(context, uri) ?: "document.pdf"
-                    if (!BookFiles.isSupportedImportName(name)) continue
-                    when (val result = LibraryImporter.import(context, uri, name, knownHashes)) {
+                    val displayName = getCreateDisplayName(context, uri) ?: "document.pdf"
+                    if (!BookFiles.isSupportedImportName(displayName)) continue
+                    when (val result = LibraryImporter.import(context, uri, displayName, knownHashes)) {
                         is LibraryImporter.ImportResult.Ok -> {
                             BookRepository.addBook(result.book)
                             result.book.contentHash?.let { knownHashes.add(it) }
@@ -131,14 +179,6 @@ internal fun CreateCollectionContent(
             } finally {
                 isImporting = false
             }
-        }
-    }
-
-    val filteredBooks = remember(allBooks, searchQuery) {
-        if (searchQuery.isBlank()) allBooks
-        else allBooks.filter {
-            it.title.contains(searchQuery, ignoreCase = true) ||
-                it.author.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -166,16 +206,19 @@ internal fun CreateCollectionContent(
                 title = {
                     Text(
                         when {
-                            collectionToEdit != null -> "Edit Collection"
-                            isSubcollection -> "New Subcollection"
-                            else -> "New Collection"
+                            collectionToEdit != null -> stringResource(R.string.edit_collection)
+                            isSubcollection -> stringResource(R.string.new_subcollection)
+                            else -> stringResource(R.string.new_collection)
                         },
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cancel")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cancel)
+                        )
                     }
                 },
                 actions = {
@@ -186,7 +229,7 @@ internal fun CreateCollectionContent(
                         enabled = name.isNotBlank()
                     ) {
                         Text(
-                            "Save",
+                            stringResource(R.string.save),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
@@ -202,11 +245,11 @@ internal fun CreateCollectionContent(
                 .fillMaxSize()
                 .padding(top = scaffoldPadding.calculateTopPadding()),
             contentPadding = PaddingValues(
-                bottom = scaffoldPadding.calculateBottomPadding() + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 80.dp
+                bottom = scaffoldPadding.calculateBottomPadding() +
+                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 80.dp
             ),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            // ---- Cover + Name + Description ----
             item {
                 Column(
                     modifier = Modifier
@@ -214,7 +257,6 @@ internal fun CreateCollectionContent(
                         .padding(horizontal = Spacing.Large, vertical = Spacing.Medium),
                     verticalArrangement = Arrangement.spacedBy(Spacing.Medium)
                 ) {
-                    // Cover picker
                     CoverPickerField(
                         coverUri = coverUri,
                         onPickImage = {
@@ -226,7 +268,7 @@ internal fun CreateCollectionContent(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Collection name *") },
+                        label = { Text(stringResource(R.string.collection_name_required)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(Dimens.CornerCard)
@@ -234,20 +276,23 @@ internal fun CreateCollectionContent(
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
-                        label = { Text("Description (optional)") },
+                        label = { Text(stringResource(R.string.description_optional)) },
                         maxLines = 3,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(Dimens.CornerCard)
                     )
+
+                    CollectionShelfPreview(
+                        books = selectedBooks,
+                        collectionName = name,
+                        modifier = Modifier.padding(top = Spacing.Small)
+                    )
                 }
             }
 
-
-
-            // ---- Section header ----
             item {
                 SectionHeader(
-                    title = "Add from library",
+                    title = stringResource(R.string.build_your_shelf),
                     modifier = Modifier.padding(horizontal = Spacing.Large, vertical = Spacing.Medium)
                 ) {
                     OutlinedButton(
@@ -271,85 +316,30 @@ internal fun CreateCollectionContent(
                 }
             }
 
-            // ---- Search bar ----
             item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search books…") },
-                    singleLine = true,
+                Text(
+                    text = stringResource(R.string.build_your_shelf_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = Spacing.Large)
+                )
+                Spacer(modifier = Modifier.height(Spacing.Medium))
+                Button(
+                    onClick = { onBrowseLibrary(selectedIds) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.Large)
-                        .padding(bottom = Spacing.SMedium),
-                    shape = RoundedCornerShape(Dimens.CornerCardLarge)
-                )
-            }
-
-            // ---- Selection summary banner ----
-            item {
-                AnimatedVisibility(
-                    visible = selectedIds.isNotEmpty(),
-                    enter = fadeIn(),
-                    exit = fadeOut()
+                        .padding(horizontal = Spacing.Large),
+                    shape = RoundedCornerShape(Dimens.CornerCard)
                 ) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = Spacing.Large, vertical = Spacing.SMedium),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "${selectedIds.size} book${if (selectedIds.size == 1) "" else "s"} selected",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            TextButton(onClick = { selectedIds = emptySet() }) {
-                                Text("Clear all")
-                            }
-                        }
-                    }
+                    Icon(Icons.Default.AutoStories, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.book_picker_browse))
                 }
-            }
-
-            // ---- Book pick-list ----
-            if (filteredBooks.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.XLarge),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "No books found",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else {
-                items(filteredBooks, key = { it.id }) { book ->
-                    val isSelected = book.id in selectedIds
-                    BookPickerItem(
-                        book = book,
-                        isSelected = isSelected,
-                        onClick = {
-                            selectedIds = if (isSelected) selectedIds - book.id
-                            else selectedIds + book.id
-                        }
-                    )
-                }
+                Spacer(modifier = Modifier.height(Spacing.Large))
             }
         }
     }
 }
-
-// ---- Cover picker field ----
 
 @Composable
 private fun CoverPickerField(
@@ -362,7 +352,6 @@ private fun CoverPickerField(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.Medium)
     ) {
-        // Preview box
         Box(
             modifier = Modifier
                 .size(width = 80.dp, height = 110.dp)
@@ -379,21 +368,20 @@ private fun CoverPickerField(
             if (coverUri != null) {
                 AsyncImage(
                     model = coverUri,
-                    contentDescription = "Collection cover",
+                    contentDescription = stringResource(R.string.collection_cover),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Image,
-                    contentDescription = "Add cover",
+                    contentDescription = stringResource(R.string.add_cover),
                     modifier = Modifier.size(32.dp),
                     tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
                 )
             }
         }
 
-        // Action column
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = onPickImage,
@@ -401,18 +389,22 @@ private fun CoverPickerField(
             ) {
                 Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(if (coverUri == null) "Add Cover" else "Change Cover")
+                Text(
+                    if (coverUri == null) stringResource(R.string.add_cover)
+                    else stringResource(R.string.change_cover)
+                )
             }
             if (coverUri != null) {
                 TextButton(onClick = onClearImage) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        stringResource(R.string.remove),
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
     }
 }
-
-// ---- Helpers ----
 
 @Composable
 private fun SectionHeader(
@@ -434,87 +426,6 @@ private fun SectionHeader(
         trailing()
     }
 }
-
-@Composable
-private fun BookPickerItem(
-    book: Book,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-) {
-    val backgroundColor = if (isSelected)
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-    else
-        MaterialTheme.colorScheme.surface
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(backgroundColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.Large, vertical = Spacing.SMedium),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.Medium)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 48.dp, height = 68.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .then(
-                    if (isSelected) Modifier.border(
-                        2.dp,
-                        MaterialTheme.colorScheme.primary,
-                        RoundedCornerShape(6.dp)
-                    ) else Modifier
-                )
-        ) {
-            BookCoverPlaceholder(
-                title = book.title,
-                modifier = Modifier.fillMaxSize()
-            )
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = "Selected",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = book.author,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
-
-        Checkbox(
-            checked = isSelected,
-            onCheckedChange = { onClick() },
-            colors = CheckboxDefaults.colors(
-                checkedColor = MaterialTheme.colorScheme.primary
-            )
-        )
-    }
-}
-
-// ---- Previews ----
 
 @Preview(showBackground = true, device = "id:pixel_7_pro")
 @Composable

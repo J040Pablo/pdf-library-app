@@ -38,6 +38,27 @@ sealed class Screen(
             else "create_collection?${params.joinToString("&")}"
         }
     }
+    /** Full-screen multi-select book picker. */
+    object BookPicker : Screen(
+        "book_picker?mode={mode}&collectionId={collectionId}",
+        "Select Books",
+        Icons.Default.AutoStories
+    ) {
+        const val RESULT_IDS_KEY = "book_picker_result_ids"
+        const val INITIAL_IDS_KEY = "book_picker_initial_ids"
+        const val RESULT_ADDED_COUNT_KEY = "book_picker_added_count"
+
+        fun createRoute(
+            mode: String = "select",
+            collectionId: String? = null
+        ): String {
+            val params = buildList {
+                add("mode=$mode")
+                if (collectionId != null) add("collectionId=$collectionId")
+            }
+            return "book_picker?${params.joinToString("&")}"
+        }
+    }
     object Reading : Screen("reading/{bookId}/{chapterId}", "Reading", Icons.Default.AutoStories) {
         fun createRoute(bookId: String, chapterId: String) = "reading/$bookId/$chapterId"
     }

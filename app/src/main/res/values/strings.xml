@@ -240,6 +240,32 @@
     <string name="page_anim_slide_short">Slide</string>
     <string name="page_anim_fold_short">Fold</string>
 
+    <!-- Book picker -->
+    <string name="book_picker_title">Choose books</string>
+    <string name="book_picker_subtitle">%1$d books in your library</string>
+    <string name="book_picker_add_title">Add to %1$s</string>
+    <string name="book_picker_browse">Browse library</string>
+    <string name="book_picker_empty_title">Your shelf is waiting</string>
+    <string name="book_picker_empty_subtitle">Import a book or create a collection to start building your library.</string>
+    <string name="no_books_match_filters">No books match these filters</string>
+    <string name="n_books_selected">%1$d books selected</string>
+    <string name="add_n_selected_books">Add %1$d books</string>
+    <string name="clear_selection">Clear</string>
+    <string name="filter_all">All</string>
+    <string name="filter_reading">Reading</string>
+    <string name="filter_unread">Unread</string>
+    <string name="filter_completed">Completed</string>
+    <string name="filter_favorites">Favorites</string>
+    <string name="filter_recent">Recent</string>
+    <string name="read_badge">Read</string>
+    <string name="import_book">Import book</string>
+    <string name="create_collection">Create collection</string>
+    <string name="your_bookshelf">Your bookshelf</string>
+    <string name="shelf_preview_empty">Selected covers will appear here</string>
+    <string name="confirm_selection">Done</string>
+    <string name="build_your_shelf">Build your shelf</string>
+    <string name="build_your_shelf_subtitle">Pick covers from your library to curate this collection</string>
+
     <!-- Book cards -->
     <string name="percent_complete">%1$d%% complete</string>
     <string name="pages_abbrev">%1$d pages</string>
