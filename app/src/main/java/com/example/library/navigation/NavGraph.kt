@@ -9,11 +9,13 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.navigation.NavBackStackEntry
 import androidx.compose.animation.AnimatedContentTransitionScope
 import com.example.library.R
@@ -42,27 +44,23 @@ fun NavGraph(
     themeViewModel: ThemeViewModel,
     onFullScreenExpansionChanged: (Float) -> Unit = {}
 ) {
-    val enterTrans: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition? = {
+    // Direct fade between bottom tabs — no directional slide that can feel like
+    // hopping through intermediate destinations on multi-tab jumps.
+    val tabFadeIn: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition? = {
         val initialRoute = initialState.destination.route?.substringBefore("/")?.substringBefore("?")
         val targetRoute = targetState.destination.route?.substringBefore("/")?.substringBefore("?")
         val routes = listOf(Screen.Home.route, Screen.Upload.route, Screen.Library.route, Screen.Profile.route)
-        val initialIndex = routes.indexOf(initialRoute)
-        val targetIndex = routes.indexOf(targetRoute)
-        if (initialIndex != -1 && targetIndex != -1) {
-            if (targetIndex > initialIndex) slideIntoContainer(SlideDirection.Left)
-            else slideIntoContainer(SlideDirection.Right)
+        if (initialRoute in routes && targetRoute in routes) {
+            fadeIn(animationSpec = tween(180))
         } else null
     }
 
-    val exitTrans: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition? = {
+    val tabFadeOut: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition? = {
         val initialRoute = initialState.destination.route?.substringBefore("/")?.substringBefore("?")
         val targetRoute = targetState.destination.route?.substringBefore("/")?.substringBefore("?")
         val routes = listOf(Screen.Home.route, Screen.Upload.route, Screen.Library.route, Screen.Profile.route)
-        val initialIndex = routes.indexOf(initialRoute)
-        val targetIndex = routes.indexOf(targetRoute)
-        if (initialIndex != -1 && targetIndex != -1) {
-            if (targetIndex > initialIndex) slideOutOfContainer(SlideDirection.Left)
-            else slideOutOfContainer(SlideDirection.Right)
+        if (initialRoute in routes && targetRoute in routes) {
+            fadeOut(animationSpec = tween(140))
         } else null
     }
 
@@ -74,10 +72,10 @@ fun NavGraph(
         ) {
             composable(
                 route = Screen.Home.route,
-                enterTransition = enterTrans,
-                exitTransition = exitTrans,
-                popEnterTransition = enterTrans,
-                popExitTransition = exitTrans
+                enterTransition = tabFadeIn,
+                exitTransition = tabFadeOut,
+                popEnterTransition = tabFadeIn,
+                popExitTransition = tabFadeOut
             ) {
                 HomeScreen(
                     animatedVisibilityScope = this@composable,
@@ -107,19 +105,19 @@ fun NavGraph(
             }
             composable(
                 route = Screen.Upload.route,
-                enterTransition = enterTrans,
-                exitTransition = exitTrans,
-                popEnterTransition = enterTrans,
-                popExitTransition = exitTrans
+                enterTransition = tabFadeIn,
+                exitTransition = tabFadeOut,
+                popEnterTransition = tabFadeIn,
+                popExitTransition = tabFadeOut
             ) {
                 UploadScreen(paddingValues = paddingValues)
             }
             composable(
                 route = Screen.Library.route,
-                enterTransition = enterTrans,
-                exitTransition = exitTrans,
-                popEnterTransition = enterTrans,
-                popExitTransition = exitTrans
+                enterTransition = tabFadeIn,
+                exitTransition = tabFadeOut,
+                popEnterTransition = tabFadeIn,
+                popExitTransition = tabFadeOut
             ) {
                 LibraryScreen(
                     animatedVisibilityScope = this@composable,
@@ -143,10 +141,10 @@ fun NavGraph(
             }
             composable(
                 route = Screen.Profile.route,
-                enterTransition = enterTrans,
-                exitTransition = exitTrans,
-                popEnterTransition = enterTrans,
-                popExitTransition = exitTrans
+                enterTransition = tabFadeIn,
+                exitTransition = tabFadeOut,
+                popEnterTransition = tabFadeIn,
+                popExitTransition = tabFadeOut
             ) {
                 ProfileScreen(
                     paddingValues = paddingValues,

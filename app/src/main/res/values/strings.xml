@@ -236,6 +236,9 @@
     <string name="page_anim_slide">Slide</string>
     <string name="page_anim_curl">Realistic book fold</string>
     <string name="page_anim_curl_description">Simulates the physical curve of a page being turned, like a premium e-reader.</string>
+    <string name="page_anim_none_short">None</string>
+    <string name="page_anim_slide_short">Slide</string>
+    <string name="page_anim_fold_short">Fold</string>
 
     <!-- Book cards -->
     <string name="percent_complete">%1$d%% complete</string>
