@@ -10,7 +10,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +36,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
@@ -62,6 +62,36 @@ private val PaperBack = Color(0xFFF3EEE4)
 private val PaperEdge = Color(0xFFE4D9C8)
 
 /**
+ * Same layout math as [ContentScale.Fit]: uniform scale, centered in [container].
+ */
+internal fun fittedContentRect(
+    contentWidth: Float,
+    contentHeight: Float,
+    containerWidth: Float,
+    containerHeight: Float
+): Rect {
+    if (contentWidth <= 0f || contentHeight <= 0f ||
+        containerWidth <= 0f || containerHeight <= 0f
+    ) {
+        return Rect(0f, 0f, containerWidth.coerceAtLeast(0f), containerHeight.coerceAtLeast(0f))
+    }
+    val contentAspect = contentWidth / contentHeight
+    val containerAspect = containerWidth / containerHeight
+    val drawW: Float
+    val drawH: Float
+    if (contentAspect > containerAspect) {
+        drawW = containerWidth
+        drawH = containerWidth / contentAspect
+    } else {
+        drawH = containerHeight
+        drawW = containerHeight * contentAspect
+    }
+    val left = (containerWidth - drawW) / 2f
+    val top = (containerHeight - drawH) / 2f
+    return Rect(left, top, left + drawW, top + drawH)
+}
+
+/**
  * Realistic flexible-sheet page curl.
  *
  * - Drag from anywhere (center or edges); origin sits on the left/right edge
@@ -69,6 +99,7 @@ private val PaperEdge = Color(0xFFE4D9C8)
  * - Tip follows the finger; release past the threshold finishes the full turn
  *   before the page index changes.
  * - Curl flap is opaque paper underside only (no mirrored front content).
+ * - Page sizing matches Slide mode: native bitmap aspect + ContentScale.Fit.
  */
 @Composable
 fun BookPageCurlAnimation(
@@ -78,7 +109,8 @@ fun BookPageCurlAnimation(
     modifier: Modifier = Modifier,
     pageProvider: PageBitmapProvider,
     curlEnabled: Boolean = true,
-    pageMargin: Dp = 20.dp,
+    /** Extra inset around the Fit area. Prefer 0 to match Slide mode margins. */
+    pageMargin: Dp = 0.dp,
     bookSurfaceColor: Color = Color(0xFF0E0E0E)
 ) {
     val scope = rememberCoroutineScope()
@@ -98,22 +130,32 @@ fun BookPageCurlAnimation(
     val tipAnim = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
 
-    val pageRect = remember(viewportSize, marginPx) {
+    // Available area after optional margin (Slide uses the full viewport).
+    val availableRect = remember(viewportSize, marginPx) {
         val w = viewportSize.width.toFloat()
         val h = viewportSize.height.toFloat()
         if (w <= 0f || h <= 0f) Rect.Zero
         else Rect(marginPx, marginPx, w - marginPx, h - marginPx)
     }
 
-    val pageWidthPx = pageRect.width.toInt().coerceAtLeast(1)
-    val pageHeightPx = pageRect.height.toInt().coerceAtLeast(1)
+    // Gesture + fold bounds = fitted page rect (same as Slide ContentScale.Fit).
+    val pageRect = remember(currentBitmap, availableRect) {
+        val bmp = currentBitmap
+        if (bmp == null || availableRect == Rect.Zero) availableRect
+        else fittedContentRect(
+            contentWidth = bmp.width.toFloat(),
+            contentHeight = bmp.height.toFloat(),
+            containerWidth = availableRect.width,
+            containerHeight = availableRect.height
+        ).translate(availableRect.left, availableRect.top)
+    }
 
     val latestProvider = rememberUpdatedState(pageProvider)
     val latestOnPageChanged = rememberUpdatedState(onPageChanged)
 
-    LaunchedEffect(currentPage, pageWidthPx, pageHeightPx) {
-        if (pageWidthPx <= 1 || pageHeightPx <= 1) return@LaunchedEffect
-        // Reset curl state when the active page changes externally.
+    // Load at native aspect (width/height 0) — same as Slide; Fit handles display.
+    LaunchedEffect(currentPage, viewportSize) {
+        if (viewportSize.width <= 0 || viewportSize.height <= 0) return@LaunchedEffect
         settleJob?.cancel()
         isDragging = false
         isSettling = false
@@ -121,12 +163,12 @@ fun BookPageCurlAnimation(
         origin = Offset.Zero
 
         val provider = latestProvider.value
-        provider.getPage(currentPage, pageWidthPx, pageHeightPx)?.let { currentBitmap = it }
+        provider.getPage(currentPage, 0, 0)?.let { currentBitmap = it }
         nextBitmap = if (currentPage + 1 < pageCount) {
-            provider.getPage(currentPage + 1, pageWidthPx, pageHeightPx)
+            provider.getPage(currentPage + 1, 0, 0)
         } else null
         prevBitmap = if (currentPage - 1 >= 0) {
-            provider.getPage(currentPage - 1, pageWidthPx, pageHeightPx)
+            provider.getPage(currentPage - 1, 0, 0)
         } else null
     }
 
@@ -341,60 +383,69 @@ fun BookPageCurlAnimation(
         }
         val localOrigin = origin
         val localTip = drawTip
-        val active = curlActive
 
         Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(pageMargin)
+            modifier = Modifier.fillMaxSize()
         ) {
             if (cb == null) return@Canvas
-            val localPage = Rect(0f, 0f, size.width, size.height)
-            val o = Offset(localOrigin.x - pageRect.left, localOrigin.y - pageRect.top)
-            val t = Offset(localTip.x - pageRect.left, localTip.y - pageRect.top)
-            val dst = IntSize(
-                size.width.toInt().coerceAtLeast(1),
-                size.height.toInt().coerceAtLeast(1)
-            )
 
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent),
-                    center = Offset(size.width / 2f, size.height / 2f),
-                    radius = max(size.width, size.height) * 0.72f
-                ),
-                topLeft = Offset(-8f, -8f),
-                size = Size(size.width + 16f, size.height + 16f)
-            )
+            // Match Slide: white letterbox + ContentScale.Fit destination.
+            drawRect(Color.White)
 
-            if (!active) {
-                drawImage(cb, dstSize = dst)
-                drawRect(
-                    color = Color.Black.copy(alpha = 0.18f),
-                    topLeft = Offset(size.width - 3f, 0f),
-                    size = Size(3f, size.height)
+            fun drawPageFitted(image: ImageBitmap) {
+                val fit = fittedContentRect(
+                    contentWidth = image.width.toFloat(),
+                    contentHeight = image.height.toFloat(),
+                    containerWidth = availableRect.width,
+                    containerHeight = availableRect.height
+                ).translate(availableRect.left, availableRect.top)
+                val dstOffset = IntOffset(
+                    fit.left.toInt(),
+                    fit.top.toInt()
                 )
+                val dstSize = IntSize(
+                    fit.width.toInt().coerceAtLeast(1),
+                    fit.height.toInt().coerceAtLeast(1)
+                )
+                drawImage(image, dstOffset = dstOffset, dstSize = dstSize)
+            }
+
+            // Fold geometry lives in the fitted page rect (not the letterbox).
+            val localPage = if (pageRect.width > 0f && pageRect.height > 0f) {
+                pageRect
+            } else {
+                fittedContentRect(
+                    contentWidth = cb.width.toFloat(),
+                    contentHeight = cb.height.toFloat(),
+                    containerWidth = availableRect.width,
+                    containerHeight = availableRect.height
+                ).translate(availableRect.left, availableRect.top)
+            }
+            val o = localOrigin
+            val t = localTip
+
+            if (!curlActive) {
+                drawPageFitted(cb)
                 return@Canvas
             }
 
             val fold = computeFold(o, t, localPage)
             if (fold == null) {
-                // Fully peeled (or tiny motion): show destination only.
-                if (under != null) drawImage(under, dstSize = dst)
-                else drawImage(cb, dstSize = dst)
+                if (under != null) drawPageFitted(under)
+                else drawPageFitted(cb)
                 return@Canvas
             }
 
-            // 1) Destination underneath — drawn once.
-            if (under != null) drawImage(under, dstSize = dst)
-            else drawRect(PaperBack)
+            // 1) Destination underneath — drawn once, Fit-scaled.
+            if (under != null) drawPageFitted(under)
+            else drawRect(PaperBack, topLeft = localPage.topLeft, size = localPage.size)
 
             drawFoldContactShadow(fold, localPage)
 
             // 2) Remaining flat front of the current page (peeled region removed).
             if (!fold.fullyPeeled) {
                 clipPath(fold.flatPath) {
-                    drawImage(cb, dstSize = dst)
+                    drawPageFitted(cb)
                 }
             }
 

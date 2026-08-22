@@ -317,7 +317,7 @@ fun ReadingScreen(
 
                 when (effectiveAnimation) {
                     PageAnimationType.CURL_FOLD -> {
-                        // Flexible-sheet curl (any touch point); pinch zoom via parent.
+                        // Flexible-sheet curl; page Fit sizing matches Slide (margin 0).
                         BookPageCurlAnimation(
                             currentPage = uiState.currentPage,
                             pageCount = uiState.totalPages,
@@ -327,8 +327,8 @@ fun ReadingScreen(
                                 .then(zoomGraphics),
                             pageProvider = pageProvider,
                             curlEnabled = !isZoomed,
-                            pageMargin = Spacing.Large,
-                            bookSurfaceColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.92f)
+                            pageMargin = 0.dp,
+                            bookSurfaceColor = Color.White
                         )
                     }
 
@@ -1089,15 +1089,23 @@ private suspend fun generatePageBitmap(
                 PdfRenderer(pfd).use { renderer ->
                     if (globalPage < renderer.pageCount) {
                         renderer.openPage(globalPage).use { page ->
-                            val renderW = if (targetWidth > 0) {
-                                targetWidth.coerceAtLeast(720)
+                            // Always preserve PDF aspect (same as Slide). Targets, if set,
+                            // only raise resolution via uniform scale — never stretch.
+                            val baseScale = 2f
+                            val (renderW, renderH) = if (targetWidth > 0 && targetHeight > 0) {
+                                val fitScale = minOf(
+                                    targetWidth / page.width.toFloat(),
+                                    targetHeight / page.height.toFloat()
+                                ).coerceAtLeast(baseScale)
+                                Pair(
+                                    (page.width * fitScale).toInt().coerceAtLeast(720),
+                                    (page.height * fitScale).toInt().coerceAtLeast(960)
+                                )
                             } else {
-                                (page.width * 2).coerceAtLeast(1080)
-                            }
-                            val renderH = if (targetHeight > 0) {
-                                targetHeight.coerceAtLeast(960)
-                            } else {
-                                (page.height * 2).coerceAtLeast(1440)
+                                Pair(
+                                    (page.width * baseScale).toInt().coerceAtLeast(1080),
+                                    (page.height * baseScale).toInt().coerceAtLeast(1440)
+                                )
                             }
                             val bmp = Bitmap.createBitmap(renderW, renderH, Bitmap.Config.ARGB_8888)
                             bmp.eraseColor(android.graphics.Color.WHITE)

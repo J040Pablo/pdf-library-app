@@ -179,7 +179,7 @@ fun BottomNavigationBar(
                     val primaryContainer = MaterialTheme.colorScheme.primaryContainer
 
                     if (!indicatorX.value.isNaN()) {
-                        // Soft primary glow under the traveling indicator.
+                        // Soft primary glow — clipped circle, no rectangular shadow.
                         Box(
                             modifier = Modifier
                                 .offset(
@@ -198,6 +198,7 @@ fun BottomNavigationBar(
                                     )
                                 )
                         )
+                        // Active indicator pill — circle only (no elevation shadow = no square artifact).
                         Box(
                             modifier = Modifier
                                 .offset(
@@ -273,8 +274,6 @@ fun BottomNavigationBar(
                                             .graphicsLayer {
                                                 scaleX = iconScale
                                                 scaleY = iconScale
-                                                // Tiny elevation feel on the active icon.
-                                                shadowElevation = if (isSelected) 4f else 0f
                                             }
                                     )
                                 }
