@@ -206,6 +206,11 @@
     <!-- Profile / Settings -->
     <string name="dashboard">Dashboard</string>
     <string name="edit_profile">Edit Profile</string>
+    <string name="profile_name_label">Name *</string>
+    <string name="profile_email_label">Email (optional)</string>
+    <string name="change_profile_photo">Change Photo</string>
+    <string name="remove_profile_photo">Remove Photo</string>
+    <string name="profile_updated">Profile updated</string>
     <string name="reading_summary">Reading Summary</string>
     <string name="books">Books</string>
     <string name="finished">Finished</string>

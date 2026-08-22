@@ -246,7 +246,7 @@ internal fun CreateCollectionContent(
                 .padding(top = scaffoldPadding.calculateTopPadding()),
             contentPadding = PaddingValues(
                 bottom = scaffoldPadding.calculateBottomPadding() +
-                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 80.dp
+                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
             ),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {

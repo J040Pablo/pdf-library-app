@@ -37,6 +37,25 @@ class ProfileViewModel : ViewModel() {
             .sortedByDescending { it.lastReadDate }
             .firstOrNull()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun updateUser(
+        name: String,
+        email: String,
+        avatarUrl: String?,
+        annualGoal: Int = user.value.annualGoal,
+        monthlyGoal: Int = user.value.monthlyGoal
+    ) {
+        val current = user.value
+        BookRepository.updateUser(
+            current.copy(
+                name = name.ifBlank { "Reader" },
+                email = email.trim(),
+                avatarUrl = avatarUrl,
+                annualGoal = annualGoal,
+                monthlyGoal = monthlyGoal
+            )
+        )
+    }
 }
 
 data class ProfileStats(
