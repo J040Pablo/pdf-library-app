@@ -125,6 +125,7 @@ fun BookPageCurlAnimation(
     var isDragging by remember { mutableStateOf(false) }
     var isSettling by remember { mutableStateOf(false) }
     var direction by remember { mutableStateOf(CurlDirection.FORWARD) }
+    var isCornerFold by remember { mutableStateOf(false) }
     var origin by remember { mutableStateOf(Offset.Zero) }
     var tip by remember { mutableStateOf(Offset.Zero) }
     val tipAnim = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
@@ -159,6 +160,7 @@ fun BookPageCurlAnimation(
         settleJob?.cancel()
         isDragging = false
         isSettling = false
+        isCornerFold = false
         tip = Offset.Zero
         origin = Offset.Zero
 
@@ -172,17 +174,15 @@ fun BookPageCurlAnimation(
         } else null
     }
 
-    /** Edge origin at finger Y; snap to a corner when near top/bottom. */
     fun pickOrigin(page: Rect, touch: Offset, dir: CurlDirection): Offset {
-        val cornerBand = page.height * CORNER_SNAP_FRACTION
-        val y = when {
-            touch.y <= page.top + cornerBand -> page.top
-            touch.y >= page.bottom - cornerBand -> page.bottom
-            else -> touch.y.coerceIn(page.top + 1f, page.bottom - 1f)
-        }
-        return when (dir) {
-            CurlDirection.FORWARD -> Offset(page.right, y)
-            CurlDirection.BACKWARD -> Offset(page.left, y)
+        val activeEdgeX = if (dir == CurlDirection.FORWARD) page.right else page.left
+        val dTop = hypot(touch.x - activeEdgeX, touch.y - page.top)
+        val dBottom = hypot(touch.x - activeEdgeX, touch.y - page.bottom)
+        val radius = min(page.width, page.height) * 0.22f
+        return when {
+            dTop < radius -> Offset(activeEdgeX, page.top)
+            dBottom < radius -> Offset(activeEdgeX, page.bottom)
+            else -> Offset(activeEdgeX, touch.y.coerceIn(page.top + 5f, page.bottom - 5f))
         }
     }
 
@@ -194,7 +194,6 @@ fun BookPageCurlAnimation(
             CurlDirection.FORWARD -> x = min(x, page.right - 1f)
             CurlDirection.BACKWARD -> x = max(x, page.left + 1f)
         }
-        // Keep tip from crossing too far past the origin (invalid fold).
         val maxDist = page.width * 1.05f
         val dx = x - o.x
         val dy = y - o.y
@@ -215,10 +214,6 @@ fun BookPageCurlAnimation(
         }
     }
 
-    /**
-     * Tip that places the fold exactly on the opposite edge — page fully peeled,
-     * geometry still valid (mid on the far edge).
-     */
     fun completeTip(page: Rect, o: Offset, dir: CurlDirection): Offset {
         return when (dir) {
             CurlDirection.FORWARD -> Offset(2f * page.left - o.x, o.y)
@@ -240,7 +235,6 @@ fun BookPageCurlAnimation(
     ) {
         settleJob?.cancel()
         settleJob = scope.launch {
-            // Snap before flipping isSettling so the first settle frame is correct.
             tipAnim.snapTo(fromTip)
             tip = fromTip
             isDragging = false
@@ -257,8 +251,6 @@ fun BookPageCurlAnimation(
             tipAnim.animateTo(target, tween(duration, easing = FastOutSlowInEasing))
 
             if (canComplete) {
-                // Hold the fully-peeled frame: show destination as the new current
-                // surface, then clear curl, then notify — index changes last.
                 when (dir) {
                     CurlDirection.FORWARD -> nextBitmap?.let { currentBitmap = it }
                     CurlDirection.BACKWARD -> prevBitmap?.let { currentBitmap = it }
@@ -344,7 +336,6 @@ fun BookPageCurlAnimation(
                                         currentPage + 1 < pageCount -> CurlDirection.FORWARD
                                     abs(delta.x) >= abs(delta.y) * 0.5f && delta.x > 0f &&
                                         currentPage - 1 >= 0 -> CurlDirection.BACKWARD
-                                    // Drag from anywhere: nearer vertical half decides.
                                     start.x >= pageRect.center.x && currentPage + 1 < pageCount ->
                                         CurlDirection.FORWARD
                                     start.x < pageRect.center.x && currentPage - 1 >= 0 ->
@@ -355,7 +346,6 @@ fun BookPageCurlAnimation(
                                 } ?: break
 
                                 direction = decided
-                                // Origin fixed for this gesture (stable fold, no mid-drag jumps).
                                 origin = pickOrigin(pageRect, start, direction)
                                 tip = constrainTip(pageRect, origin, start, direction)
                                 isDragging = true
@@ -389,7 +379,6 @@ fun BookPageCurlAnimation(
         ) {
             if (cb == null) return@Canvas
 
-            // Match Slide: white letterbox + ContentScale.Fit destination.
             drawRect(Color.White)
 
             fun drawPageFitted(image: ImageBitmap) {
@@ -410,7 +399,6 @@ fun BookPageCurlAnimation(
                 drawImage(image, dstOffset = dstOffset, dstSize = dstSize)
             }
 
-            // Fold geometry lives in the fitted page rect (not the letterbox).
             val localPage = if (pageRect.width > 0f && pageRect.height > 0f) {
                 pageRect
             } else {
@@ -436,20 +424,17 @@ fun BookPageCurlAnimation(
                 return@Canvas
             }
 
-            // 1) Destination underneath — drawn once, Fit-scaled.
             if (under != null) drawPageFitted(under)
             else drawRect(PaperBack, topLeft = localPage.topLeft, size = localPage.size)
 
             drawFoldContactShadow(fold, localPage)
 
-            // 2) Remaining flat front of the current page (peeled region removed).
             if (!fold.fullyPeeled) {
                 clipPath(fold.flatPath) {
                     drawPageFitted(cb)
                 }
             }
 
-            // 3) Opaque paper underside of the turning sheet — never redraw front art.
             if (!fold.fullyPeeled) {
                 drawCurlFlap(fold)
             }
@@ -483,11 +468,11 @@ private data class FoldGeometry(
     val fullyPeeled: Boolean
 )
 
-/**
- * Classic page-curl fold: perpendicular bisector of origin→tip is the crease.
- * Peeled region = page ∩ half-plane containing the origin (reveals underneath).
- * Curl region = triangle edgeA–tip–edgeB (paper underside).
- */
+private fun reflectPointAcrossFold(p: Offset, mid: Offset, nx: Float, ny: Float): Offset {
+    val dot = (p.x - mid.x) * nx + (p.y - mid.y) * ny
+    return Offset(p.x - 2f * dot * nx, p.y - 2f * dot * ny)
+}
+
 private fun computeFold(origin: Offset, tip: Offset, page: Rect): FoldGeometry? {
     val dx = tip.x - origin.x
     val dy = tip.y - origin.y
@@ -500,7 +485,6 @@ private fun computeFold(origin: Offset, tip: Offset, page: Rect): FoldGeometry? 
 
     val edges = intersectPerpBisector(page, mid, nx, ny)
     if (edges.size < 2) {
-        // Fold line no longer crosses the page — treat as fully turned.
         val originFromMid = Offset(origin.x - mid.x, origin.y - mid.y)
         val pageCenter = Offset(page.center.x - mid.x, page.center.y - mid.y)
         val fullyPeeled = originFromMid.x * pageCenter.x + originFromMid.y * pageCenter.y < 0f
@@ -519,24 +503,38 @@ private fun computeFold(origin: Offset, tip: Offset, page: Rect): FoldGeometry? 
         }
         return null
     }
+
     val edgeA = edges[0]
     val edgeB = edges[1]
 
-    val peeled = clipRectToHalfPlane(page, mid, origin)
+    val peeledVertices = clipRectToHalfPlaneVertices(page, mid, origin)
+    val peeledPath = Path().apply {
+        if (peeledVertices.size >= 3) {
+            moveTo(peeledVertices[0].x, peeledVertices[0].y)
+            for (i in 1 until peeledVertices.size) {
+                lineTo(peeledVertices[i].x, peeledVertices[i].y)
+            }
+            close()
+        }
+    }
+
     val pagePath = Path().apply { addRect(page) }
     val flat = Path().apply {
-        op(pagePath, peeled, PathOperation.Difference)
+        op(pagePath, peeledPath, PathOperation.Difference)
     }
 
-    // Curl flap: from crease to tip (the folded-over paper).
     val curlPath = Path().apply {
-        moveTo(edgeA.x, edgeA.y)
-        lineTo(tip.x, tip.y)
-        lineTo(edgeB.x, edgeB.y)
-        close()
+        if (peeledVertices.isNotEmpty()) {
+            val firstReflect = reflectPointAcrossFold(peeledVertices[0], mid, nx, ny)
+            moveTo(firstReflect.x, firstReflect.y)
+            for (i in 1 until peeledVertices.size) {
+                val r = reflectPointAcrossFold(peeledVertices[i], mid, nx, ny)
+                lineTo(r.x, r.y)
+            }
+            close()
+        }
     }
 
-    // If almost nothing remains flat, mark fully peeled for clean completion frames.
     val remainingApprox = flat.getBounds().let { it.width * it.height }
     val pageArea = page.width * page.height
     val fullyPeeled = remainingApprox < pageArea * 0.004f
@@ -553,8 +551,7 @@ private fun computeFold(origin: Offset, tip: Offset, page: Rect): FoldGeometry? 
     )
 }
 
-/** Page ∩ half-plane on the [origin] side of the fold through [mid]. */
-private fun clipRectToHalfPlane(page: Rect, mid: Offset, origin: Offset): Path {
+private fun clipRectToHalfPlaneVertices(page: Rect, mid: Offset, origin: Offset): List<Offset> {
     val hx = origin.x - mid.x
     val hy = origin.y - mid.y
     val corners = arrayOf(
@@ -583,23 +580,10 @@ private fun clipRectToHalfPlane(page: Rect, mid: Offset, origin: Offset): Path {
             out.add(next)
         }
     }
-
-    return Path().apply {
-        if (out.size >= 3) {
-            moveTo(out[0].x, out[0].y)
-            for (i in 1 until out.size) lineTo(out[i].x, out[i].y)
-            close()
-        }
-    }
+    return out
 }
 
-private fun intersect(
-    a: Offset,
-    b: Offset,
-    mid: Offset,
-    hx: Float,
-    hy: Float
-): Offset {
+private fun intersect(a: Offset, b: Offset, mid: Offset, hx: Float, hy: Float): Offset {
     val ax = a.x - mid.x
     val ay = a.y - mid.y
     val bx = b.x - mid.x
@@ -610,13 +594,7 @@ private fun intersect(
     return Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
 }
 
-private fun intersectPerpBisector(
-    page: Rect,
-    mid: Offset,
-    nx: Float,
-    ny: Float
-): List<Offset> {
-    // Line: nx*(x - mid.x) + ny*(y - mid.y) = 0
+private fun intersectPerpBisector(page: Rect, mid: Offset, nx: Float, ny: Float): List<Offset> {
     val c = nx * mid.x + ny * mid.y
     val pts = ArrayList<Offset>(4)
 
@@ -664,10 +642,11 @@ private fun intersectPerpBisector(
 
 private fun DrawScope.drawFoldContactShadow(fold: FoldGeometry, page: Rect) {
     if (fold.fullyPeeled) return
+
     clipPath(fold.curlPath) {
         drawRect(
             brush = Brush.linearGradient(
-                colors = listOf(Color.Black.copy(alpha = 0.30f), Color.Transparent),
+                colors = listOf(Color.Black.copy(alpha = 0.32f), Color.Transparent),
                 start = fold.mid,
                 end = fold.tip
             ),
@@ -675,16 +654,16 @@ private fun DrawScope.drawFoldContactShadow(fold: FoldGeometry, page: Rect) {
             size = Size(page.width, page.height)
         )
     }
+
     val fx = fold.edgeB.x - fold.edgeA.x
     val fy = fold.edgeB.y - fold.edgeA.y
     val fl = hypot(fx, fy).coerceAtLeast(1f)
     val towardUnder = Offset(fold.mid.x - fold.tip.x, fold.mid.y - fold.tip.y)
     val len = hypot(towardUnder.x, towardUnder.y).coerceAtLeast(1f)
-    val ux = towardUnder.x / len * 18f
-    val uy = towardUnder.y / len * 18f
-    // Fallback if tip≈mid
-    val sx = if (len < 2f) -fy / fl * 18f else ux
-    val sy = if (len < 2f) fx / fl * 18f else uy
+    val ux = towardUnder.x / len * 22f
+    val uy = towardUnder.y / len * 22f
+    val sx = if (len < 2f) -fy / fl * 22f else ux
+    val sy = if (len < 2f) fx / fl * 22f else uy
     val band = Path().apply {
         moveTo(fold.edgeA.x, fold.edgeA.y)
         lineTo(fold.edgeB.x, fold.edgeB.y)
@@ -695,54 +674,30 @@ private fun DrawScope.drawFoldContactShadow(fold: FoldGeometry, page: Rect) {
     drawPath(
         path = band,
         brush = Brush.linearGradient(
-            colors = listOf(Color.Black.copy(alpha = 0.28f), Color.Transparent),
+            colors = listOf(Color.Black.copy(alpha = 0.30f), Color.Transparent),
             start = fold.mid,
             end = Offset(fold.mid.x + sx, fold.mid.y + sy)
         )
     )
 }
 
-/**
- * Opaque paper underside only — never redraws the front-page bitmap
- * (fixes ghost/duplicate content on the folded flap).
- */
 private fun DrawScope.drawCurlFlap(fold: FoldGeometry) {
     clipPath(fold.curlPath) {
         drawRect(PaperBack)
-
-        // Soft thickness / curl shading along crease → tip.
         drawPath(
             path = fold.curlPath,
             brush = Brush.linearGradient(
                 colors = listOf(
-                    Color.Black.copy(alpha = 0.14f),
+                    Color.Black.copy(alpha = 0.16f),
                     Color.Transparent,
-                    Color.Black.copy(alpha = 0.10f)
+                    Color.White.copy(alpha = 0.35f),
+                    Color.Black.copy(alpha = 0.12f)
                 ),
-                start = fold.edgeA,
+                start = fold.mid,
                 end = fold.tip
             )
         )
-
-        // Specular highlight near the crease (paper catching light).
-        drawPath(
-            path = fold.curlPath,
-            brush = Brush.linearGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.42f),
-                    Color.White.copy(alpha = 0.08f),
-                    Color.Transparent
-                ),
-                start = fold.mid,
-                end = Offset(
-                    fold.mid.x + (fold.tip.x - fold.mid.x) * 0.55f,
-                    fold.mid.y + (fold.tip.y - fold.mid.y) * 0.55f
-                )
-            )
-        )
     }
-
-    // Paper edge thickness along the crease.
     drawLine(
         color = PaperEdge,
         start = fold.edgeA,
