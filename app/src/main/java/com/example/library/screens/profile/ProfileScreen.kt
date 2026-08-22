@@ -427,6 +427,7 @@ fun GoalItem(title: String, current: Int, target: Int, unit: String) {
 @Composable
 fun SettingsSection(themeViewModel: ThemeViewModel) {
     val themePreference by themeViewModel.themePreference.collectAsState()
+    val pageAnimationType by themeViewModel.pageAnimationType.collectAsState()
 
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Text(
@@ -446,6 +447,20 @@ fun SettingsSection(themeViewModel: ThemeViewModel) {
                 themeViewModel.setTheme(if (isChecked) ThemePreference.DARK else ThemePreference.LIGHT)
             }
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.reading_settings),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        PageTurnEffectSetting(
+            selected = pageAnimationType,
+            onSelected = themeViewModel::setPageAnimationType
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
         SettingItem(
             Icons.Outlined.Notifications,
             stringResource(R.string.notifications_setting),

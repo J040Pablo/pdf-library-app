@@ -33,8 +33,10 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -70,8 +72,10 @@ import com.example.library.data.BookFiles
 import com.example.library.model.Book
 import com.example.library.model.BookFormat
 import com.example.library.model.Chapter
+import com.example.library.model.PageAnimationType
 import com.example.library.ui.theme.Spacing
 import com.example.library.viewmodel.ReadingViewModel
+import com.example.library.viewmodel.ThemeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,11 +88,14 @@ fun ReadingScreen(
     bookId: String,
     chapterId: String,
     onBackClick: () -> Unit,
-    viewModel: ReadingViewModel = viewModel()
+    viewModel: ReadingViewModel = viewModel(),
+    themeViewModel: ThemeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val pageAnimationType by themeViewModel.pageAnimationType.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val prefersReducedMotion = rememberReducedMotionPreference(context)
 
     LaunchedEffect(bookId, chapterId) {
         viewModel.load(bookId, chapterId)
@@ -202,7 +209,8 @@ fun ReadingScreen(
                         }
                     )
                 }
-                .pointerInput(Unit) {
+                .pointerInput(isZoomed) {
+                    // Pinch/zoom always available. Single-finger pans left for page curl.
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         do {
@@ -278,61 +286,126 @@ fun ReadingScreen(
         ) {
             key(chapter.id) {
                 val nextChapter = book.chapters.getOrNull(uiState.chapterIndex + 1)
-
-                val pagerState = rememberPagerState(
-                    initialPage = uiState.currentPage.coerceIn(0, uiState.totalPages - 1),
-                    pageCount = { uiState.totalPages + 1 }
-                )
-
-                // Sync PagerState with ViewModel for valid chapter pages
-                LaunchedEffect(pagerState.currentPage) {
-                    if (pagerState.currentPage < uiState.totalPages && pagerState.currentPage != uiState.currentPage) {
-                        viewModel.goToPage(pagerState.currentPage)
-                    }
+                // Match ReaderScreenIntegration.kt: branch on pageAnimationType.
+                // Reduced-motion / zoom force a non-curl fallback.
+                val effectiveAnimation = when {
+                    prefersReducedMotion -> PageAnimationType.NONE
+                    else -> pageAnimationType
                 }
 
-                LaunchedEffect(uiState.currentPage) {
-                    if (uiState.currentPage < uiState.totalPages && pagerState.currentPage != uiState.currentPage) {
-                        pagerState.scrollToPage(uiState.currentPage.coerceIn(0, uiState.totalPages - 1))
-                    }
+                val zoomGraphics = Modifier.graphicsLayer {
+                    scaleX = zoomScaleAnim.value
+                    scaleY = zoomScaleAnim.value
+                    translationX = zoomOffsetXAnim.value
+                    translationY = zoomOffsetYAnim.value
                 }
 
-                // Seamless continuous reading: auto-advance to next chapter when settling on transition page
-                LaunchedEffect(pagerState.settledPage) {
-                    if (pagerState.settledPage == uiState.totalPages && nextChapter != null) {
-                        kotlinx.coroutines.delay(400)
-                        viewModel.goToNextChapter()
-                    }
-                }
-
-                HorizontalPager(
-                    state = pagerState,
-                    userScrollEnabled = !isZoomed,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = zoomScaleAnim.value
-                            scaleY = zoomScaleAnim.value
-                            translationX = zoomOffsetXAnim.value
-                            translationY = zoomOffsetYAnim.value
-                        }
-                ) { pageIndex ->
-                    if (pageIndex < uiState.totalPages) {
-                        PageContentView(
-                            book = book,
-                            chapter = chapter,
+                val latestBook = rememberUpdatedState(book)
+                val latestChapter = rememberUpdatedState(chapter)
+                val pageProvider = remember(context) {
+                    PageBitmapProvider { pageIndex, widthPx, heightPx ->
+                        generatePageBitmap(
+                            context = context,
+                            book = latestBook.value,
+                            chapter = latestChapter.value,
                             pageIndex = pageIndex,
-                            totalPagesInChapter = uiState.totalPages
+                            targetWidth = widthPx,
+                            targetHeight = heightPx
+                        )?.asImageBitmap()
+                    }
+                }
+
+                when (effectiveAnimation) {
+                    PageAnimationType.CURL_FOLD -> {
+                        // Flexible-sheet curl (any touch point); pinch zoom via parent.
+                        BookPageCurlAnimation(
+                            currentPage = uiState.currentPage,
+                            pageCount = uiState.totalPages,
+                            onPageChanged = { newPage -> viewModel.goToPage(newPage) },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(zoomGraphics),
+                            pageProvider = pageProvider,
+                            curlEnabled = !isZoomed,
+                            pageMargin = Spacing.Large,
+                            bookSurfaceColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.92f)
                         )
-                    } else {
-                        ChapterTransitionCard(
+                    }
+
+                    PageAnimationType.NONE -> {
+                        InstantPageTurnContent(
                             book = book,
                             chapter = chapter,
+                            uiStateCurrentPage = uiState.currentPage,
+                            totalPages = uiState.totalPages,
                             chapterIndex = uiState.chapterIndex,
                             nextChapter = nextChapter,
-                            onNextChapterClick = { viewModel.goToNextChapter() },
-                            onBackToDetailClick = onBackClick
+                            userScrollEnabled = !isZoomed,
+                            onPageChanged = { viewModel.goToPage(it) },
+                            onNextChapter = { viewModel.goToNextChapter() },
+                            onBackToDetail = onBackClick,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(zoomGraphics)
                         )
+                    }
+
+                    PageAnimationType.SLIDE -> {
+                        val pagerState = rememberPagerState(
+                            initialPage = uiState.currentPage.coerceIn(0, uiState.totalPages - 1),
+                            pageCount = { uiState.totalPages + 1 }
+                        )
+
+                        LaunchedEffect(pagerState.currentPage) {
+                            if (pagerState.currentPage < uiState.totalPages &&
+                                pagerState.currentPage != uiState.currentPage
+                            ) {
+                                viewModel.goToPage(pagerState.currentPage)
+                            }
+                        }
+
+                        LaunchedEffect(uiState.currentPage) {
+                            if (uiState.currentPage < uiState.totalPages &&
+                                pagerState.currentPage != uiState.currentPage
+                            ) {
+                                pagerState.scrollToPage(
+                                    uiState.currentPage.coerceIn(0, uiState.totalPages - 1)
+                                )
+                            }
+                        }
+
+                        LaunchedEffect(pagerState.settledPage) {
+                            if (pagerState.settledPage == uiState.totalPages && nextChapter != null) {
+                                kotlinx.coroutines.delay(400)
+                                viewModel.goToNextChapter()
+                            }
+                        }
+
+                        HorizontalPager(
+                            state = pagerState,
+                            userScrollEnabled = !isZoomed,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(zoomGraphics)
+                        ) { pageIndex ->
+                            if (pageIndex < uiState.totalPages) {
+                                PageContentView(
+                                    book = book,
+                                    chapter = chapter,
+                                    pageIndex = pageIndex,
+                                    totalPagesInChapter = uiState.totalPages
+                                )
+                            } else {
+                                ChapterTransitionCard(
+                                    book = book,
+                                    chapter = chapter,
+                                    chapterIndex = uiState.chapterIndex,
+                                    nextChapter = nextChapter,
+                                    onNextChapterClick = { viewModel.goToNextChapter() },
+                                    onBackToDetailClick = onBackClick
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -658,6 +731,102 @@ fun ReadingScreen(
 // ── Page Content Renderer Component ─────────────────────────────────────────
 
 @Composable
+private fun rememberReducedMotionPreference(context: Context): Boolean {
+    return remember(context) {
+        try {
+            val durationScale = Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            )
+            durationScale == 0f
+        } catch (_: Exception) {
+            false
+        }
+    }
+}
+
+/**
+ * Instant page changes (no slide / curl). Swipe past a threshold jumps to the next/previous page.
+ */
+@Composable
+private fun InstantPageTurnContent(
+    book: Book,
+    chapter: Chapter,
+    uiStateCurrentPage: Int,
+    totalPages: Int,
+    chapterIndex: Int,
+    nextChapter: Chapter?,
+    userScrollEnabled: Boolean,
+    onPageChanged: (Int) -> Unit,
+    onNextChapter: () -> Unit,
+    onBackToDetail: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var dragAccum by remember { mutableFloatStateOf(0f) }
+    var showingEndCard by remember(chapter.id) { mutableStateOf(false) }
+
+    LaunchedEffect(uiStateCurrentPage) {
+        if (uiStateCurrentPage < totalPages - 1) {
+            showingEndCard = false
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .pointerInput(uiStateCurrentPage, totalPages, userScrollEnabled, showingEndCard) {
+                if (!userScrollEnabled) return@pointerInput
+                detectHorizontalDragGestures(
+                    onDragStart = { dragAccum = 0f },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragAccum += dragAmount
+                    },
+                    onDragEnd = {
+                        val threshold = size.width * 0.18f
+                        when {
+                            dragAccum < -threshold -> {
+                                when {
+                                    showingEndCard && nextChapter != null -> onNextChapter()
+                                    uiStateCurrentPage < totalPages - 1 ->
+                                        onPageChanged(uiStateCurrentPage + 1)
+                                    else -> showingEndCard = true
+                                }
+                            }
+                            dragAccum > threshold -> {
+                                when {
+                                    showingEndCard -> showingEndCard = false
+                                    uiStateCurrentPage > 0 -> onPageChanged(uiStateCurrentPage - 1)
+                                }
+                            }
+                        }
+                        dragAccum = 0f
+                    },
+                    onDragCancel = { dragAccum = 0f }
+                )
+            }
+    ) {
+        if (showingEndCard) {
+            ChapterTransitionCard(
+                book = book,
+                chapter = chapter,
+                chapterIndex = chapterIndex,
+                nextChapter = nextChapter,
+                onNextChapterClick = onNextChapter,
+                onBackToDetailClick = onBackToDetail
+            )
+        } else {
+            PageContentView(
+                book = book,
+                chapter = chapter,
+                pageIndex = uiStateCurrentPage.coerceIn(0, totalPages - 1),
+                totalPagesInChapter = totalPages
+            )
+        }
+    }
+}
+
+@Composable
 private fun PageContentView(
     book: Book,
     chapter: Chapter,
@@ -907,7 +1076,9 @@ private suspend fun generatePageBitmap(
     context: Context,
     book: Book,
     chapter: Chapter,
-    pageIndex: Int
+    pageIndex: Int,
+    targetWidth: Int = 0,
+    targetHeight: Int = 0
 ): Bitmap? = withContext(Dispatchers.IO) {
     try {
         val globalPage = chapter.startPage + pageIndex
@@ -918,8 +1089,16 @@ private suspend fun generatePageBitmap(
                 PdfRenderer(pfd).use { renderer ->
                     if (globalPage < renderer.pageCount) {
                         renderer.openPage(globalPage).use { page ->
-                            val renderW = (page.width * 2).coerceAtLeast(1080)
-                            val renderH = (page.height * 2).coerceAtLeast(1440)
+                            val renderW = if (targetWidth > 0) {
+                                targetWidth.coerceAtLeast(720)
+                            } else {
+                                (page.width * 2).coerceAtLeast(1080)
+                            }
+                            val renderH = if (targetHeight > 0) {
+                                targetHeight.coerceAtLeast(960)
+                            } else {
+                                (page.height * 2).coerceAtLeast(1440)
+                            }
                             val bmp = Bitmap.createBitmap(renderW, renderH, Bitmap.Config.ARGB_8888)
                             bmp.eraseColor(android.graphics.Color.WHITE)
                             page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
@@ -937,8 +1116,8 @@ private suspend fun generatePageBitmap(
                 android.graphics.BitmapFactory.decodeFile(pageFile.absolutePath)
             } else null
         } else {
-            val width = 1080
-            val height = 1920
+            val width = if (targetWidth > 0) targetWidth else 1080
+            val height = if (targetHeight > 0) targetHeight else 1920
             val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(bmp)
             canvas.drawColor(android.graphics.Color.WHITE)

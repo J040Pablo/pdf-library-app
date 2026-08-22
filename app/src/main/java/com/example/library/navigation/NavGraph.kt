@@ -188,7 +188,8 @@ fun NavGraph(
                 ReadingScreen(
                     bookId = bookId,
                     chapterId = chapterId,
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = { navController.popBackStack() },
+                    themeViewModel = themeViewModel
                 )
             }
             composable(

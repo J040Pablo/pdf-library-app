@@ -228,6 +228,15 @@
     <string name="empty_profile_title">Start your reading journey</string>
     <string name="empty_profile_message">Add your first book to see your stats grow here.</string>
 
+    <!-- Reading preferences -->
+    <string name="reading_settings">Reading</string>
+    <string name="page_turn_effect">Page turn effect</string>
+    <string name="page_turn_effect_subtitle">Choose how pages animate while reading</string>
+    <string name="page_anim_none">No animation</string>
+    <string name="page_anim_slide">Slide</string>
+    <string name="page_anim_curl">Realistic book fold</string>
+    <string name="page_anim_curl_description">Simulates the physical curve of a page being turned, like a premium e-reader.</string>
+
     <!-- Book cards -->
     <string name="percent_complete">%1$d%% complete</string>
     <string name="pages_abbrev">%1$d pages</string>
