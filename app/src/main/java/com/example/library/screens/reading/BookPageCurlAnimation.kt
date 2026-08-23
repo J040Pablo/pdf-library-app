@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -101,6 +103,22 @@ internal fun fittedContentRect(
  * - Curl flap is opaque paper underside only (no mirrored front content).
  * - Page sizing matches Slide mode: native bitmap aspect + ContentScale.Fit.
  */
+private data class PendingPageTurn(
+    val direction: CurlDirection,
+    val sourcePage: Int,
+    val destPage: Int
+)
+
+/**
+ * Realistic flexible-sheet page curl.
+ *
+ * - Drag from anywhere (center or edges); origin sits on the left/right edge
+ *   at the finger's Y (corners snap when near top/bottom).
+ * - Tip follows the finger; release past the threshold finishes the full turn
+ *   before the page index changes.
+ * - Curl flap is opaque paper underside only (no mirrored front content).
+ * - Page sizing matches Slide mode: native bitmap aspect + ContentScale.Fit.
+ */
 @Composable
 fun BookPageCurlAnimation(
     currentPage: Int,
@@ -118,6 +136,8 @@ fun BookPageCurlAnimation(
     val marginPx = with(density) { pageMargin.toPx() }
 
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
+    var activePageIndex by remember(currentPage) { mutableIntStateOf(currentPage) }
+
     var currentBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var nextBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var prevBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -130,6 +150,8 @@ fun BookPageCurlAnimation(
     var tip by remember { mutableStateOf(Offset.Zero) }
     val tipAnim = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
+
+    val pageQueue = remember { mutableStateListOf<PendingPageTurn>() }
 
     // Available area after optional margin (Slide uses the full viewport).
     val availableRect = remember(viewportSize, marginPx) {
@@ -155,22 +177,20 @@ fun BookPageCurlAnimation(
     val latestOnPageChanged = rememberUpdatedState(onPageChanged)
 
     // Load at native aspect (width/height 0) — same as Slide; Fit handles display.
-    LaunchedEffect(currentPage, viewportSize) {
+    LaunchedEffect(activePageIndex, viewportSize) {
         if (viewportSize.width <= 0 || viewportSize.height <= 0) return@LaunchedEffect
-        settleJob?.cancel()
-        isDragging = false
-        isSettling = false
-        isCornerFold = false
-        tip = Offset.Zero
-        origin = Offset.Zero
+        if (!isSettling && !isDragging) {
+            tip = Offset.Zero
+            origin = Offset.Zero
+        }
 
         val provider = latestProvider.value
-        provider.getPage(currentPage, 0, 0)?.let { currentBitmap = it }
-        nextBitmap = if (currentPage + 1 < pageCount) {
-            provider.getPage(currentPage + 1, 0, 0)
+        provider.getPage(activePageIndex, 0, 0)?.let { currentBitmap = it }
+        nextBitmap = if (activePageIndex + 1 < pageCount) {
+            provider.getPage(activePageIndex + 1, 0, 0)
         } else null
-        prevBitmap = if (currentPage - 1 >= 0) {
-            provider.getPage(currentPage - 1, 0, 0)
+        prevBitmap = if (activePageIndex - 1 >= 0) {
+            provider.getPage(activePageIndex - 1, 0, 0)
         } else null
     }
 
@@ -221,9 +241,24 @@ fun BookPageCurlAnimation(
         }
     }
 
-    val drawTip = if (isSettling) tipAnim.value else tip
-    val curlActive = (isDragging || isSettling) &&
-        hypot(drawTip.x - origin.x, drawTip.y - origin.y) > 4f
+    fun snapCurrentSettleToCompletion() {
+        settleJob?.cancel()
+        settleJob = null
+        if (isSettling) {
+            when (direction) {
+                CurlDirection.FORWARD -> nextBitmap?.let { currentBitmap = it }
+                CurlDirection.BACKWARD -> prevBitmap?.let { currentBitmap = it }
+            }
+            val targetPage = when (direction) {
+                CurlDirection.FORWARD -> activePageIndex + 1
+                CurlDirection.BACKWARD -> activePageIndex - 1
+            }.coerceIn(0, pageCount - 1)
+            activePageIndex = targetPage
+            latestOnPageChanged.value(targetPage)
+            tip = origin
+            isSettling = false
+        }
+    }
 
     fun beginSettle(
         page: Rect,
@@ -233,39 +268,101 @@ fun BookPageCurlAnimation(
         canComplete: Boolean,
         destPage: Int
     ) {
+        if (!canComplete) {
+            settleJob?.cancel()
+            pageQueue.clear()
+            settleJob = scope.launch {
+                try {
+                    isSettling = true
+                    tipAnim.snapTo(fromTip)
+                    tip = fromTip
+                    isDragging = false
+
+                    val remaining = hypot(o.x - fromTip.x, o.y - fromTip.y) / page.width.coerceAtLeast(1f)
+                    val duration = (SETTLE_MS_MIN + (SETTLE_MS_MAX - SETTLE_MS_MIN) * remaining.coerceIn(0.4f, 1f)).toInt()
+                    tipAnim.animateTo(o, tween(duration, easing = FastOutSlowInEasing))
+                    tip = o
+                    tipAnim.snapTo(o)
+                } finally {
+                    isSettling = false
+                }
+            }
+            return
+        }
+
+        if (isSettling) {
+            val lastTarget = pageQueue.lastOrNull()?.destPage ?: destPage
+            val nextSource = lastTarget
+            val nextDest = when (dir) {
+                CurlDirection.FORWARD -> nextSource + 1
+                CurlDirection.BACKWARD -> nextSource - 1
+            }
+            if (nextDest in 0 until pageCount) {
+                pageQueue.add(PendingPageTurn(dir, nextSource, nextDest))
+            }
+            return
+        }
+
         settleJob?.cancel()
         settleJob = scope.launch {
-            tipAnim.snapTo(fromTip)
-            tip = fromTip
-            isDragging = false
-            isSettling = true
+            try {
+                isSettling = true
+                isDragging = false
+                var currentDir = dir
+                var currentFromTip = fromTip
+                var currentOrigin = o
+                var currentDest = destPage
 
-            val target = if (canComplete) completeTip(page, o, dir) else o
-            val remaining = hypot(target.x - fromTip.x, target.y - fromTip.y) /
-                page.width.coerceAtLeast(1f)
-            val duration = (
-                SETTLE_MS_MIN +
-                    (SETTLE_MS_MAX - SETTLE_MS_MIN) * remaining.coerceIn(0.4f, 1f)
-                ).toInt()
+                while (true) {
+                    tipAnim.snapTo(currentFromTip)
+                    tip = currentFromTip
+                    origin = currentOrigin
+                    direction = currentDir
 
-            tipAnim.animateTo(target, tween(duration, easing = FastOutSlowInEasing))
+                    val target = completeTip(page, currentOrigin, currentDir)
+                    val remaining = hypot(target.x - currentFromTip.x, target.y - currentFromTip.y) / page.width.coerceAtLeast(1f)
+                    val duration = (SETTLE_MS_MIN + (SETTLE_MS_MAX - SETTLE_MS_MIN) * remaining.coerceIn(0.4f, 1f)).toInt()
 
-            if (canComplete) {
-                when (dir) {
-                    CurlDirection.FORWARD -> nextBitmap?.let { currentBitmap = it }
-                    CurlDirection.BACKWARD -> prevBitmap?.let { currentBitmap = it }
+                    tipAnim.animateTo(target, tween(duration, easing = FastOutSlowInEasing))
+
+                    when (currentDir) {
+                        CurlDirection.FORWARD -> nextBitmap?.let { currentBitmap = it }
+                        CurlDirection.BACKWARD -> prevBitmap?.let { currentBitmap = it }
+                    }
+
+                    activePageIndex = currentDest
+                    latestOnPageChanged.value(currentDest)
+
+                    val nextItem = if (pageQueue.isNotEmpty()) pageQueue.removeAt(0) else null
+                    if (nextItem == null || nextItem.destPage !in 0 until pageCount) {
+                        tip = currentOrigin
+                        tipAnim.snapTo(currentOrigin)
+                        break
+                    }
+
+                    currentDir = nextItem.direction
+                    currentDest = nextItem.destPage
+
+                    val provider = latestProvider.value
+                    if (currentDir == CurlDirection.FORWARD) {
+                        nextBitmap = provider.getPage(currentDest, 0, 0)
+                    } else {
+                        prevBitmap = provider.getPage(currentDest, 0, 0)
+                    }
+
+                    currentOrigin = pickOrigin(page, page.center, currentDir)
+                    currentFromTip = currentOrigin
                 }
-                tip = o
-                tipAnim.snapTo(o)
+            } finally {
                 isSettling = false
-                latestOnPageChanged.value(destPage)
-            } else {
-                tip = o
-                tipAnim.snapTo(o)
-                isSettling = false
+                pageQueue.clear()
             }
         }
     }
+
+    val drawTip = if (isSettling) tipAnim.value else tip
+    val curlActive = (isDragging || isSettling) &&
+        hypot(drawTip.x - origin.x, drawTip.y - origin.y) > 4f
 
     Box(
         modifier = modifier
@@ -273,10 +370,9 @@ fun BookPageCurlAnimation(
             .background(bookSurfaceColor)
             .onSizeChanged { viewportSize = it }
             .graphicsLayer()
-            .pointerInput(pageRect, currentPage, pageCount, curlEnabled) {
+            .pointerInput(pageRect, activePageIndex, pageCount, curlEnabled) {
                 if (!curlEnabled || pageRect.width <= 0f) return@pointerInput
                 awaitEachGesture {
-                    if (isSettling) return@awaitEachGesture
                     val down = awaitFirstDown(requireUnconsumed = false)
                     if (currentEvent.changes.size > 1) return@awaitEachGesture
 
@@ -309,8 +405,8 @@ fun BookPageCurlAnimation(
                                     val shouldComplete =
                                         prog >= COMPLETE_THRESHOLD || (prog >= 0.18f && flingBoost)
                                     val destPage = when (direction) {
-                                        CurlDirection.FORWARD -> currentPage + 1
-                                        CurlDirection.BACKWARD -> currentPage - 1
+                                        CurlDirection.FORWARD -> activePageIndex + 1
+                                        CurlDirection.BACKWARD -> activePageIndex - 1
                                     }
                                     val canComplete = shouldComplete && destPage in 0 until pageCount
                                     beginSettle(
@@ -331,17 +427,22 @@ fun BookPageCurlAnimation(
 
                             if (!dragging) {
                                 if (hypot(delta.x, delta.y) < DRAG_SLOP_PX) continue
+
+                                if (isSettling) {
+                                    snapCurrentSettleToCompletion()
+                                }
+
                                 val decided = when {
                                     abs(delta.x) >= abs(delta.y) * 0.5f && delta.x < 0f &&
-                                        currentPage + 1 < pageCount -> CurlDirection.FORWARD
+                                        activePageIndex + 1 < pageCount -> CurlDirection.FORWARD
                                     abs(delta.x) >= abs(delta.y) * 0.5f && delta.x > 0f &&
-                                        currentPage - 1 >= 0 -> CurlDirection.BACKWARD
-                                    start.x >= pageRect.center.x && currentPage + 1 < pageCount ->
+                                        activePageIndex - 1 >= 0 -> CurlDirection.BACKWARD
+                                    start.x >= pageRect.center.x && activePageIndex + 1 < pageCount ->
                                         CurlDirection.FORWARD
-                                    start.x < pageRect.center.x && currentPage - 1 >= 0 ->
+                                    start.x < pageRect.center.x && activePageIndex - 1 >= 0 ->
                                         CurlDirection.BACKWARD
-                                    currentPage + 1 < pageCount -> CurlDirection.FORWARD
-                                    currentPage - 1 >= 0 -> CurlDirection.BACKWARD
+                                    activePageIndex + 1 < pageCount -> CurlDirection.FORWARD
+                                    activePageIndex - 1 >= 0 -> CurlDirection.BACKWARD
                                     else -> null
                                 } ?: break
 

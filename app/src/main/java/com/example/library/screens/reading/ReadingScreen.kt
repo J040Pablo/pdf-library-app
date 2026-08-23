@@ -209,7 +209,7 @@ fun ReadingScreen(
                         }
                     )
                 }
-                .pointerInput(isZoomed) {
+                .pointerInput(Unit) {
                     // Pinch/zoom always available. Single-finger pans left for page curl.
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
