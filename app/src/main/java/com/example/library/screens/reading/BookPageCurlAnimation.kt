@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -129,7 +130,8 @@ fun BookPageCurlAnimation(
     curlEnabled: Boolean = true,
     /** Extra inset around the Fit area. Prefer 0 to match Slide mode margins. */
     pageMargin: Dp = 0.dp,
-    bookSurfaceColor: Color = Color(0xFF0E0E0E)
+    bookSurfaceColor: Color = Color(0xFF0E0E0E),
+    transitionContent: (@Composable () -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -475,9 +477,27 @@ fun BookPageCurlAnimation(
         val localOrigin = origin
         val localTip = drawTip
 
-        Canvas(
-            modifier = Modifier.fillMaxSize()
-        ) {
+        val showTransitionOverlay = transitionContent != null && activePageIndex == pageCount - 1
+        val showTransitionUnder = transitionContent != null && (
+            showTransitionOverlay ||
+            (activePageIndex == pageCount - 2 && direction == CurlDirection.FORWARD && curlActive)
+        )
+
+        if (showTransitionUnder) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                contentAlignment = Alignment.Center
+            ) {
+                transitionContent?.invoke()
+            }
+        }
+
+        if (!showTransitionOverlay || curlActive) {
+            Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
             if (cb == null) return@Canvas
 
             drawRect(Color.White)
@@ -556,6 +576,7 @@ fun BookPageCurlAnimation(
             }
         }
     }
+}
 }
 
 private data class FoldGeometry(

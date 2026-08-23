@@ -302,33 +302,69 @@ fun ReadingScreen(
 
                 val latestBook = rememberUpdatedState(book)
                 val latestChapter = rememberUpdatedState(chapter)
+                val latestTotalPages = rememberUpdatedState(uiState.totalPages)
                 val pageProvider = remember(context) {
                     PageBitmapProvider { pageIndex, widthPx, heightPx ->
-                        generatePageBitmap(
-                            context = context,
-                            book = latestBook.value,
-                            chapter = latestChapter.value,
-                            pageIndex = pageIndex,
-                            targetWidth = widthPx,
-                            targetHeight = heightPx
-                        )?.asImageBitmap()
+                        if (pageIndex < latestTotalPages.value) {
+                            generatePageBitmap(
+                                context = context,
+                                book = latestBook.value,
+                                chapter = latestChapter.value,
+                                pageIndex = pageIndex,
+                                targetWidth = widthPx,
+                                targetHeight = heightPx
+                            )?.asImageBitmap()
+                        } else {
+                            val w = if (widthPx > 0) widthPx else 1080
+                            val h = if (heightPx > 0) heightPx else 1920
+                            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(bmp)
+                            canvas.drawColor(android.graphics.Color.WHITE)
+                            bmp.asImageBitmap()
+                        }
                     }
                 }
 
                 when (effectiveAnimation) {
                     PageAnimationType.CURL_FOLD -> {
-                        // Flexible-sheet curl; page Fit sizing matches Slide (margin 0).
+                        val totalPages = uiState.totalPages
+                        var activeCurlPage by remember(uiState.currentPage) {
+                            mutableIntStateOf(uiState.currentPage)
+                        }
+
+                        LaunchedEffect(activeCurlPage, nextChapter) {
+                            if (activeCurlPage >= totalPages && nextChapter != null) {
+                                kotlinx.coroutines.delay(400)
+                                viewModel.goToNextChapter()
+                            }
+                        }
+
                         BookPageCurlAnimation(
-                            currentPage = uiState.currentPage,
-                            pageCount = uiState.totalPages,
-                            onPageChanged = { newPage -> viewModel.goToPage(newPage) },
+                            currentPage = uiState.currentPage.coerceIn(0, (totalPages - 1).coerceAtLeast(0)),
+                            pageCount = totalPages + 1,
+                            onPageChanged = { newPage ->
+                                activeCurlPage = newPage
+                                if (newPage < totalPages) {
+                                    viewModel.goToPage(newPage)
+                                }
+                            },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .then(zoomGraphics),
                             pageProvider = pageProvider,
                             curlEnabled = !isZoomed,
                             pageMargin = 0.dp,
-                            bookSurfaceColor = Color.White
+                            bookSurfaceColor = Color.White,
+                            transitionContent = {
+                                ChapterTransitionCard(
+                                    book = book,
+                                    chapter = chapter,
+                                    chapterIndex = uiState.chapterIndex,
+                                    nextChapter = nextChapter,
+                                    onNextChapterClick = { viewModel.goToNextChapter() },
+                                    onBackToDetailClick = onBackClick
+                                )
+                            }
                         )
                     }
 
