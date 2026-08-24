@@ -89,6 +89,7 @@ fun LibraryTheme(
             // Transparent bars — edge-to-edge is enabled in MainActivity
             window.statusBarColor = android.graphics.Color.TRANSPARENT
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            window.decorView.setBackgroundColor(colorScheme.background.toArgb())
             WindowCompat.getInsetsController(window, view).apply {
                 // Light icons on dark theme, dark icons on light theme
                 isAppearanceLightStatusBars = !darkTheme

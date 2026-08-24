@@ -50,6 +50,9 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
+import com.example.library.ui.components.AnimatedHamburgerIcon
+import com.example.library.ui.components.HomeNavigationDrawer
+import kotlinx.coroutines.launch
 
 // Custom 8-pointed "Sunny" shape for notifications (Figma style)
 val SunnyShape = object : Shape {
@@ -95,9 +98,15 @@ fun SharedTransitionScope.HomeScreen(
     onSearchClick: () -> Unit,
     onBookClick: (String, String) -> Unit = { _, _ -> },
     onEditBookClick: (String) -> Unit = {},
+    onBooksClick: () -> Unit = {},
+    onNavigateToLibrary: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     paddingValues: PaddingValues = PaddingValues(Dimens.CornerSmall),
     viewModel: BookViewModel = viewModel()
 ) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
+
     val recentBooks by viewModel.recentBooks.collectAsState()
     val topRatedBooks by viewModel.topRatedBooks.collectAsState()
 
@@ -169,70 +178,81 @@ fun SharedTransitionScope.HomeScreen(
         )
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            if (selectedBookIds.isNotEmpty()) {
-                // ── Selection-mode TopAppBar ───────────────────────────────────
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(R.string.selected_count, selectedBookIds.size),
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { selectedBookIds = emptySet() }) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel_selection))
-                        }
-                    },
-                    actions = {
-                        // Edit — only when exactly one book is selected
-                        if (selectedBookIds.size == 1) {
-                            IconButton(onClick = {
-                                val id = selectedBookIds.first()
-                                selectedBookIds = emptySet()
-                                onEditBookClick(id)
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
-                            }
-                        }
-                        // Delete — always available in selection mode
-                        IconButton(onClick = { showDeleteConfirmation = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-            } else {
-                // ── Normal TopAppBar ──────────────────────────────────────────
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-                        actionIconContentColor = MaterialTheme.colorScheme.onBackground,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground
-                    ),
-                    navigationIcon = {
-                        IconButton(onClick = { /* TODO */ }) {
-                            Icon(
-                                imageVector = Icons.Default.Menu,
-                                contentDescription = stringResource(R.string.menu)
+    HomeNavigationDrawer(
+        drawerState = drawerState,
+        onHomeClick = {
+            coroutineScope.launch { drawerState.close() }
+        },
+        onBooksClick = onBooksClick,
+        onLibraryClick = onNavigateToLibrary,
+        onSettingsClick = onNavigateToSettings
+    ) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                if (selectedBookIds.isNotEmpty()) {
+                    // ── Selection-mode TopAppBar ───────────────────────────────────
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = stringResource(R.string.selected_count, selectedBookIds.size),
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                             )
-                        }
-                    },
-                    actions = {
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = { selectedBookIds = emptySet() }) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel_selection))
+                            }
+                        },
+                        actions = {
+                            // Edit — only when exactly one book is selected
+                            if (selectedBookIds.size == 1) {
+                                IconButton(onClick = {
+                                    val id = selectedBookIds.first()
+                                    selectedBookIds = emptySet()
+                                    onEditBookClick(id)
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit))
+                                }
+                            }
+                            // Delete — always available in selection mode
+                            IconButton(onClick = { showDeleteConfirmation = true }) {
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                } else {
+                    // ── Normal TopAppBar ──────────────────────────────────────────
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                            actionIconContentColor = MaterialTheme.colorScheme.onBackground,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground
+                        ),
+                        navigationIcon = {
+                            AnimatedHamburgerIcon(
+                                isOpen = drawerState.isOpen,
+                                onClick = {
+                                    coroutineScope.launch {
+                                        if (drawerState.isOpen) drawerState.close() else drawerState.open()
+                                    }
+                                }
+                            )
+                        },
+                        actions = {
                         IconButton(onClick = onSearchClick) {
                             Icon(
                                 imageVector = Icons.Default.Search,
@@ -615,6 +635,7 @@ fun SharedTransitionScope.HomeScreen(
             }
         }
     }
+}
 }
 
 @androidx.compose.ui.tooling.preview.Preview(

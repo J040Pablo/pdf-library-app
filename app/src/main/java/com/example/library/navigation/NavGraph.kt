@@ -93,6 +93,19 @@ fun NavGraph(
                     },
                     onEditBookClick = { bookId ->
                         navController.navigate(Screen.EditBook.createRoute(bookId))
+                    },
+                    onBooksClick = {
+                        // Future redirection to external book-links catalog/website
+                    },
+                    onNavigateToLibrary = {
+                        navController.navigate(Screen.Library.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(Screen.Profile.route) {
+                            launchSingleTop = true
+                        }
                     }
                 )
             }

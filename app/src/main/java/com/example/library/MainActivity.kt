@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.library.data.BookRepository
 import com.example.library.data.ThemePreference
 import com.example.library.ui.theme.LibraryTheme
@@ -15,23 +16,24 @@ import com.example.library.viewmodel.ThemeViewModel
 
 class MainActivity : ComponentActivity() {
 
-    // ThemeViewModel uses AndroidViewModel — no factory needed when using viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
 
-        // Edge-to-edge: status bar and nav bar are rendered transparently.
-        // Their icon colours are adjusted in LibraryTheme's SideEffect.
+        // Hold splash screen on screen until initial theme preference is loaded from DataStore
+        splashScreen.setKeepOnScreenCondition {
+            !themeViewModel.isThemeLoaded.value
+        }
+
         enableEdgeToEdge()
 
-        // Kick off DataStore load before the first composition.
         BookRepository.initialize(applicationContext)
 
         setContent {
             val preference by themeViewModel.themePreference.collectAsState()
 
-            // Resolve SYSTEM preference here — the only place isSystemInDarkTheme() is called.
             val isDark = when (preference) {
                 ThemePreference.LIGHT -> false
                 ThemePreference.DARK -> true

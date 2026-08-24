@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -486,6 +487,12 @@ fun SettingsSection(themeViewModel: ThemeViewModel) {
     val themePreference by themeViewModel.themePreference.collectAsState()
     val pageAnimationType by themeViewModel.pageAnimationType.collectAsState()
 
+    val isDark = when (themePreference) {
+        ThemePreference.LIGHT -> false
+        ThemePreference.DARK -> true
+        ThemePreference.SYSTEM -> isSystemInDarkTheme()
+    }
+
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Text(
             stringResource(R.string.settings),
@@ -499,7 +506,7 @@ fun SettingsSection(themeViewModel: ThemeViewModel) {
             title = stringResource(R.string.dark_theme),
             subtitle = stringResource(R.string.dark_theme_subtitle),
             hasSwitch = true,
-            checked = themePreference == ThemePreference.DARK,
+            checked = isDark,
             onCheckedChange = { isChecked ->
                 themeViewModel.setTheme(if (isChecked) ThemePreference.DARK else ThemePreference.LIGHT)
             }
@@ -548,7 +555,7 @@ fun SettingItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* TODO */ }
+            .clickable(enabled = hasSwitch) { onCheckedChange(!checked) }
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
