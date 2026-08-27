@@ -171,34 +171,38 @@ fun ProfileHeader(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .size(104.dp)
-                .clip(CircleShape)
-                .border(2.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .clickable(onClick = onEditClick),
+            modifier = Modifier.clickable(onClick = onEditClick),
             contentAlignment = Alignment.Center
         ) {
-            if (!user.avatarUrl.isNullOrEmpty()) {
-                AsyncImage(
-                    model = user.avatarUrl,
-                    contentDescription = user.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
-                )
+            Box(
+                modifier = Modifier
+                    .size(104.dp)
+                    .clip(CircleShape)
+                    .border(2.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!user.avatarUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = user.avatarUrl,
+                        contentDescription = user.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                    )
+                }
             }
 
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .size(30.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
                     .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
@@ -625,34 +629,38 @@ fun EditProfileDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable { photoPickerLauncher.launch(arrayOf("image/*")) },
+                    modifier = Modifier.clickable { photoPickerLauncher.launch(arrayOf("image/*")) },
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!avatarUrl.isNullOrEmpty()) {
-                        AsyncImage(
-                            model = avatarUrl,
-                            contentDescription = name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(56.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
-                        )
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!avatarUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(56.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                            )
+                        }
                     }
 
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .size(28.dp)
+                            .size(30.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
                             .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
@@ -661,7 +669,7 @@ fun EditProfileDialog(
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(15.dp),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }

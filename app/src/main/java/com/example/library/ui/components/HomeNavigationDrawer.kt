@@ -47,9 +47,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.example.library.R
 import kotlinx.coroutines.launch
 
@@ -63,6 +65,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeNavigationDrawer(
     drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed),
+    gesturesEnabled: Boolean = true,
     onHomeClick: () -> Unit = {},
     onBooksClick: () -> Unit = {},
     onLibraryClick: () -> Unit = {},
@@ -80,8 +83,9 @@ fun HomeNavigationDrawer(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = true,
+        gesturesEnabled = gesturesEnabled,
         scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.38f),
+        modifier = Modifier.zIndex(100f),
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -89,6 +93,10 @@ fun HomeNavigationDrawer(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(320.dp)
+                    .zIndex(100f)
+                    .graphicsLayer {
+                        shadowElevation = 16.dp.toPx()
+                    }
             ) {
                 DrawerSheetContent(
                     onHomeClick = {

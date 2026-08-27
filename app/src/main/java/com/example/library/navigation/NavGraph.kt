@@ -41,12 +41,17 @@ import com.example.library.screens.search.SearchScreen
 import com.example.library.screens.upload.UploadScreen
 import com.example.library.viewmodel.ThemeViewModel
 
+import androidx.compose.material3.DrawerState
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun NavGraph(
     navController: NavHostController,
     paddingValues: PaddingValues,
     themeViewModel: ThemeViewModel,
+    drawerState: DrawerState = rememberDrawerState(DrawerValue.Closed),
     onFullScreenExpansionChanged: (Float) -> Unit = {}
 ) {
     // Direct fade between bottom tabs — no directional slide that can feel like
@@ -84,6 +89,7 @@ fun NavGraph(
             ) {
                 HomeScreen(
                     animatedVisibilityScope = this@composable,
+                    drawerState = drawerState,
                     paddingValues = paddingValues,
                     onSearchClick = {
                         navController.navigate(Screen.Search.route)

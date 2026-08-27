@@ -101,10 +101,10 @@ fun SharedTransitionScope.HomeScreen(
     onBooksClick: () -> Unit = {},
     onNavigateToLibrary: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    drawerState: DrawerState = rememberDrawerState(initialValue = DrawerValue.Closed),
     paddingValues: PaddingValues = PaddingValues(Dimens.CornerSmall),
     viewModel: BookViewModel = viewModel()
 ) {
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
 
     val recentBooks by viewModel.recentBooks.collectAsState()
@@ -178,16 +178,7 @@ fun SharedTransitionScope.HomeScreen(
         )
     }
 
-    HomeNavigationDrawer(
-        drawerState = drawerState,
-        onHomeClick = {
-            coroutineScope.launch { drawerState.close() }
-        },
-        onBooksClick = onBooksClick,
-        onLibraryClick = onNavigateToLibrary,
-        onSettingsClick = onNavigateToSettings
-    ) {
-        Scaffold(
+    Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 if (selectedBookIds.isNotEmpty()) {
@@ -635,7 +626,6 @@ fun SharedTransitionScope.HomeScreen(
             }
         }
     }
-}
 }
 
 @androidx.compose.ui.tooling.preview.Preview(
